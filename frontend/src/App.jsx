@@ -3,18 +3,26 @@ import Register from './pages/Register';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import MapPage from './pages/MapPage';
+import CreateReport from './pages/CreateReport';
+import Layout from './components/Layout';
+import UpDashboard from './components/upDashboard';
+import ComplaintDetails from './pages/ComplaintDetails';
 
 function App() {
   return (
     <Router>
-      <Routes>
-        {/* Default route redirects to login */}
-        <Route path="/" element={<Navigate to="/login" />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<Home />} />
-        <Route path="/map" element={<MapPage />} />
-      </Routes>
+      <Layout> {/* Wrap everything with Layout */}
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/dashboard" element={<UpDashboard />} />
+          <Route path="/complaint/:id" element={<ComplaintDetails />} />
+          <Route path="/create-report" element={<CreateReport />} />
+          <Route path="/map" element={<MapPage />} />
+        </Routes>
+      </Layout>
     </Router>
   );
 }
