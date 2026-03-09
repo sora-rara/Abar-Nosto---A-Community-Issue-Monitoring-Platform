@@ -74,6 +74,16 @@ const Navbar = () => {
 
                                         Report Issue
                                     </Link>
+                                    <Link
+                                        to="/map"
+                                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center ${isActive('/map')
+                                            ? 'text-white'
+                                            : 'text-gray-300 hover:text-white'
+                                            }`}
+                                        style={isActive('/map') ? { backgroundColor: '#FFA500' } : {}}
+                                    >
+                                        🗺️ Map
+                                    </Link>
                                     <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-700">
                                         <span className="text-gray-300 text-sm">
                                             Hi, <span style={{ color: '#FFA500' }} className="font-semibold">{userName}</span>
@@ -177,6 +187,18 @@ const Navbar = () => {
                                 >
                                     <span className="mr-2">📸</span>
                                     Report Issue
+                                </Link>
+                                <Link
+                                    to="/map"
+                                    className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${isActive('/map')
+                                        ? 'text-white'
+                                        : 'text-gray-300 hover:text-white'
+                                        }`}
+                                    style={isActive('/map') ? { backgroundColor: '#FFA500' } : {}}
+                                    onClick={() => setMobileMenuOpen(false)}
+                                >
+                                    <span className="mr-2">🗺️</span>
+                                    City Map
                                 </Link>
                                 <button
                                     onClick={handleLogout}

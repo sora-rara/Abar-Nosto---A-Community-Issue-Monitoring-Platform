@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMapEvents } from 'react-leaflet';
 import axios from 'axios';
 import L from 'leaflet';
@@ -17,10 +17,11 @@ const MapPage = () => {
     const [geoJsonData, setGeoJsonData] = useState(null);
     const [issues, setIssues] = useState([]); 
 
-    // Form State
+    // Form State (Updated to match teammate's schema)
     const [showForm, setShowForm] = useState(false);
     const [newReport, setNewReport] = useState({
-        type: 'road',
+        title: '',
+        category: 'pothole',
         description: '',
         lat: '',
         lng: '',
@@ -45,12 +46,14 @@ const MapPage = () => {
 
     const fetchIssues = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/issues');
-            // SAFETY NET 1: Ensure we only set the array if the backend actually sent an array!
+            const token = localStorage.getItem('token');
+            const response = await axios.get('http://localhost:5000/api/issues', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
             if (Array.isArray(response.data)) {
                 setIssues(response.data);
             } else {
-                console.error("Backend did not send an array:", response.data);
                 setIssues([]);
             }
         } catch (error) {
@@ -59,16 +62,11 @@ const MapPage = () => {
         }
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userName');
-        navigate('/login');
-    };
-
-    const getIconForType = (type) => {
-        if (type === 'accident') return iconAccident;
-        if (type === 'disaster') return iconDisaster;
-        return iconRoad; 
+    // Updated icon logic to match teammate's new categories
+    const getIconForCategory = (category) => {
+        if (['flooding', 'drainage'].includes(category)) return iconDisaster;
+        if (['broken_light', 'other'].includes(category)) return iconAccident;
+        return iconRoad; // pothole, garbage, debris
     };
 
     const MapClickHandler = () => {
@@ -76,7 +74,7 @@ const MapPage = () => {
             click: async (e) => {
                 const { lat, lng } = e.latlng;
                 setShowForm(true);
-                setNewReport({ ...newReport, type: 'road', description: '', lat, lng, address: 'Loading address...' });
+                setNewReport({ ...newReport, title: '', category: 'pothole', description: '', lat, lng, address: 'Loading address...' });
 
                 try {
                     const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
@@ -91,45 +89,36 @@ const MapPage = () => {
     };
 
     const handleSubmit = async (e) => {
-            e.preventDefault();
-            try {
-                const token = localStorage.getItem('token');
-                const config = { headers: { Authorization: `Bearer ${token}` } }; // Axios is smart enough to set the multipart header automatically!
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            const config = { headers: { Authorization: `Bearer ${token}` } };
 
-                // Create a new FormData object
-                const formData = new FormData();
-                formData.append('type', newReport.type);
-                formData.append('description', newReport.description);
-                formData.append('lat', newReport.lat);
-                formData.append('lng', newReport.lng);
-                formData.append('address', newReport.address);
-                if (newReport.imageFile) {
-                    formData.append('image', newReport.imageFile);
-                }
-
-                // Send the formData instead of the JSON object
-                await axios.post('http://localhost:5000/api/issues', formData, config);
-                
-                setShowForm(false);
-                fetchIssues(); 
-                alert('Issue reported successfully!');
-            } catch (error) {
-                console.error("Error submitting issue:", error);
-                alert('Failed to report issue. Please try again.');
+            const formData = new FormData();
+            formData.append('title', newReport.title);
+            formData.append('category', newReport.category);
+            formData.append('description', newReport.description);
+            formData.append('lat', newReport.lat);
+            formData.append('lng', newReport.lng);
+            formData.append('address', newReport.address);
+            if (newReport.imageFile) {
+                // Your teammate's uploader might use a different key, but we'll try 'image' or 'photos'
+                formData.append('image', newReport.imageFile); 
             }
-        };
+
+            await axios.post('http://localhost:5000/api/issues', formData, config);
+            
+            setShowForm(false);
+            fetchIssues(); 
+            alert('Issue reported successfully!');
+        } catch (error) {
+            console.error("Error submitting issue:", error);
+            alert('Failed to report issue. Please try again.');
+        }
+    };
 
     return (
-        <div className="flex flex-col min-h-screen bg-gray-100">
-            <header className="flex items-center justify-between p-4 text-white bg-blue-600 shadow-md z-20 relative">
-                <button onClick={handleLogout} className="px-4 py-2 text-sm bg-blue-800 rounded hover:bg-red-600">Logout</button>
-                <h1 className="text-xl font-bold">Abar Nosto!</h1>
-                <div className="flex gap-4">
-                    <Link to="/dashboard" className="px-4 py-2 text-sm bg-blue-800 rounded hover:bg-blue-900">Home</Link>
-                    <button className="px-4 py-2 text-sm font-bold bg-green-500 rounded hover:bg-green-600">🗺️ Map</button>
-                </div>
-            </header>
-
+        <div className="flex flex-col min-h-[calc(100vh-64px)] bg-gray-100">
             <div className="flex flex-grow overflow-hidden relative">
                 <aside className="w-80 bg-slate-800 text-white flex flex-col shadow-lg z-10">
                     <div className="p-5 border-b border-slate-600 flex-shrink-0">
@@ -138,18 +127,15 @@ const MapPage = () => {
                         <div className="flex flex-col gap-4 text-sm">
                             <div className="flex items-center gap-3">
                                 <img src="/icon-black.png" alt="Road" className="w-6 h-6" />
-                                <span><strong>Black:</strong> Road/Drain Issue</span>
+                                <span><strong>Black:</strong> Pothole / Garbage / Debris</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <img src="/icon-yellow.png" alt="Disaster" className="w-6 h-6" />
-                                <span><strong>Yellow:</strong> Natural Disaster</span>
+                                <span><strong>Yellow:</strong> Flooding / Drainage</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <img src="/icon-red.png" alt="Accident" className="w-6 h-6" />
-                                <span><strong>Red:</strong> Fatal Accident / Fire</span>
-                            </div>
-                            <div>  
-                                <span><strong>N.B.:</strong> TO REPORT CLICK ON THE EXACT LOCATION ON THE MAP. </span>
+                                <span><strong>Red:</strong> Broken Light / Other</span>
                             </div>
                         </div>
                     </div>
@@ -161,24 +147,27 @@ const MapPage = () => {
                                 <p className="text-center text-gray-400">No issues reported yet.</p>
                             ) : (
                                 issues.map((issue) => {
-                                    // SAFETY NET 2: Skip rendering if location data is missing
                                     if (!issue.location) return null; 
                                     
                                     return (
                                         <div key={issue._id || Math.random()} className="bg-slate-700 p-4 rounded-lg shadow-md border border-slate-600">
                                             <div className="flex items-center gap-2 mb-2">
-                                                <img src={getIconForType(issue.type).options.iconUrl} alt="icon" className="w-5 h-5" />
-                                                <h3 className="font-bold capitalize text-blue-300">{issue.type} Issue</h3>
+                                                <img src={getIconForCategory(issue.category).options.iconUrl} alt="icon" className="w-5 h-5" />
+                                                <h3 className="font-bold capitalize text-blue-300">
+                                                    {issue.title || issue.category?.replace('_', ' ')}
+                                                </h3>
                                             </div>
                                             <p className="text-sm text-gray-200">{issue.description}</p>
-                                            {/* RENDER THE IMAGE IF IT EXISTS */}
-                                            {issue.image && (
+                                            
+                                            {/* --- THE IMAGE FIX --- */}
+                                            {issue.photos && issue.photos.length > 0 && (
                                                 <img 
-                                                    src={`http://localhost:5000${issue.image}`} 
+                                                    src={issue.photos[0].url} 
                                                     alt="Issue" 
                                                     className="w-full h-32 object-cover rounded mt-3 border border-slate-500"
                                                 />
                                             )}
+                                            
                                             <p className="text-xs text-gray-400 mt-3 font-semibold">📍 {issue.location.address}</p>
                                         </div>
                                     )
@@ -195,13 +184,12 @@ const MapPage = () => {
                         {geoJsonData && <GeoJSON data={geoJsonData} style={{ color: "#2563EB", weight: 2, fillOpacity: 0.1 }} />}
 
                         {issues.map((issue) => {
-                            // SAFETY NET 3: Skip placing the marker if GPS coordinates are missing
                             if (!issue.location || !issue.location.lat || !issue.location.lng) return null;
 
                             return (
-                                <Marker key={issue._id || Math.random()} position={[issue.location.lat, issue.location.lng]} icon={getIconForType(issue.type)}>
+                                <Marker key={issue._id || Math.random()} position={[issue.location.lat, issue.location.lng]} icon={getIconForCategory(issue.category)}>
                                     <Popup>
-                                        <strong className="capitalize">{issue.type} Issue</strong><br/>
+                                        <strong className="capitalize">{issue.title || issue.category?.replace('_', ' ')}</strong><br/>
                                         {issue.description}<br/>
                                         <span className="text-xs text-gray-500">{issue.location.address}</span>
                                     </Popup>
@@ -221,12 +209,30 @@ const MapPage = () => {
                                         <label className="block text-gray-700 font-bold mb-2">Location</label>
                                         <p className="text-sm text-gray-600 bg-gray-100 p-2 rounded">{newReport.address}</p>
                                     </div>
+
+                                    {/* --- NEW TITLE INPUT --- */}
                                     <div className="mb-4">
-                                        <label className="block text-gray-700 font-bold mb-2">Issue Type</label>
-                                        <select value={newReport.type} onChange={(e) => setNewReport({...newReport, type: e.target.value})} className="w-full p-2 border rounded">
-                                            <option value="road">Road/Drain Issue</option>
-                                            <option value="accident">Fatal Accident / Fire</option>
-                                            <option value="disaster">Natural Disaster</option>
+                                        <label className="block text-gray-700 font-bold mb-2">Issue Title</label>
+                                        <input 
+                                            required 
+                                            type="text"
+                                            value={newReport.title} 
+                                            onChange={(e) => setNewReport({...newReport, title: e.target.value})} 
+                                            className="w-full p-2 border rounded" 
+                                            placeholder="e.g., Massive Pothole on Main St"
+                                        />
+                                    </div>
+
+                                    <div className="mb-4">
+                                        <label className="block text-gray-700 font-bold mb-2">Category</label>
+                                        <select value={newReport.category} onChange={(e) => setNewReport({...newReport, category: e.target.value})} className="w-full p-2 border rounded">
+                                            <option value="pothole">Pothole</option>
+                                            <option value="broken_light">Broken Light</option>
+                                            <option value="drainage">Drainage</option>
+                                            <option value="flooding">Flooding</option>
+                                            <option value="garbage">Garbage</option>
+                                            <option value="debris">Debris</option>
+                                            <option value="other">Other</option>
                                         </select>
                                     </div>
                                     <div className="mb-4">
