@@ -16,8 +16,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve uploaded images statically 
+app.use('/uploads', require('express').static('uploads'));
+
 // Use the authentication routes
 app.use('/api/auth', authRoutes);
+app.use('/api/issues', require('./routes/issueRoutes'));
 
 // A simple test route
 app.get('/', (req, res) => {
