@@ -7,6 +7,7 @@ import Layout from './components/Layout';
 import UpDashboard from './components/upDashboard';
 import ComplaintDetails from './pages/ComplaintDetails';
 import AdminDashboard from './pages/AdminDashboard';
+import MapPage from './pages/MapPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -50,6 +51,12 @@ function App() {
                     <Route path="/create-report" element={
                         <ProtectedRoute>
                             <CreateReport />
+                        </ProtectedRoute>
+                    } />
+
+                    <Route path="/map" element={
+                        <ProtectedRoute>
+                            <MapPage />
                         </ProtectedRoute>
                     } />
                     <Route path="/admin" element={

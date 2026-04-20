@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import IssueCard from './IssueCard';
 import LiveActivityFeed from './LiveActivityFeed';
@@ -7,6 +7,9 @@ import Navbar from '../components/Navbar';
 
 const UpDashboard = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+
+
     const [userName, setUserName] = useState('');
     const [userInitial, setUserInitial] = useState('');
     const [issues, setIssues] = useState([]);
@@ -22,6 +25,32 @@ const UpDashboard = () => {
         status: 'all',
         sort: 'recent'
     });
+
+        // Handle scrolling to highlighted issue
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const highlightId = params.get('highlight');
+
+        // If there is an ID in the URL, and issues have finished loading
+        if (highlightId && !loading && issues.length > 0) {
+            // Tiny timeout ensures the DOM has rendered the list before scrolling
+            setTimeout(() => {
+                const element = document.getElementById(`issue-${highlightId}`);
+                if (element) {
+                    // Scroll the item into the center of the screen
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // Add a cool orange ring effect to grab their attention
+                    element.classList.add('ring-4', 'ring-orange-500', 'rounded-xl', 'transition-all', 'duration-1000');
+                    
+                    // Remove the ring after 3 seconds
+                    setTimeout(() => {
+                        element.classList.remove('ring-4', 'ring-orange-500');
+                    }, 3000);
+                }
+            }, 100);
+        }
+    }, [location.search, loading, issues]);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -178,16 +207,21 @@ const UpDashboard = () => {
                         ) : (
                             <div>
                                 {issues.map(issue => (
-                                    <IssueCard
-                                        key={issue._id}
-                                        issue={{
-                                            ...issue,
-                                            hasUserUpvoted: issue.upvotes?.some(
-                                                u => u.user === localStorage.getItem('userId')
-                                            )
-                                        }}
-                                        onUpdate={fetchIssues}
-                                    />
+                                    <div 
+                                            id={`issue-${issue._id}`} 
+                                            key={issue._id} 
+                                            className="transition-all duration-500 mb-6"
+                                        >
+                                            <IssueCard
+                                                issue={{
+                                                    ...issue,
+                                                    hasUserUpvoted: issue.upvotes?.some(
+                                                        u => u.user === localStorage.getItem('userId')
+                                                    )
+                                                }}
+                                                onUpdate={fetchIssues}
+                                            />
+                                    </div>
                                 ))}
                             </div>
                         )}

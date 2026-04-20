@@ -11,7 +11,23 @@ const User = require('../models/User');
 // @route   GET /api/issues
 const getIssues = async (req, res) => {
     try {
-        const reports = await Report.find().sort('-createdAt');
+        const { category, status, sort, exclude_resolved } = req.query;
+        let query = {};
+
+        // Apply dashboard filters if they exist
+        if (category && category !== 'all') query.category = category;
+        if (status && status !== 'all') query.status = status;
+        
+        // Map specific filter to hide resolved issues
+        if (exclude_resolved === 'true') {
+            query.status = { $ne: 'resolved' };
+        }
+
+        // Apply sorting (defaults to newest first)
+        let sortQuery = '-createdAt';
+        if (sort === '-upvoteCount') sortQuery = '-upvoteCount';
+
+        const reports = await Report.find(query).sort(sortQuery);
         res.json(reports);
     } catch (error) {
         res.status(500).json({ message: error.message });
