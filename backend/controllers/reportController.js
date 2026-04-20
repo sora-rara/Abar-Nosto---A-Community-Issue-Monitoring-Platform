@@ -1,5 +1,49 @@
 const Report = require('../models/Report');
 const imagekit = require('../config/imagekit');
+const { findNearbyUsers, notifyUser, getDistanceFromLatLonInMeters } = require('../services/notificationService');
+const User = require('../models/User');
+const Activity = require('../models/Activity');
+const AdminIssue = require('../models/AdminIssue');
+const mongoose = require('mongoose');
+
+// Helper function to sync report to admin collection
+const syncToAdminCollection = async (reportId) => {
+    try {
+        const report = await Report.findById(reportId)
+            .populate('user', 'name email');
+
+        if (!report) return;
+
+        await AdminIssue.findOneAndUpdate(
+            { originalReportId: reportId },
+            {
+                title: report.title,
+                description: report.description,
+                category: report.category,
+                location: {
+                    address: report.location?.address || 'Unknown',
+                    lat: report.location?.lat || 0,
+                    lng: report.location?.lng || 0
+                },
+                photos: report.photos || [],
+                reportedBy: report.user?._id || report.user,
+                reporterName: report.user?.name || 'Unknown',
+                reporterEmail: report.user?.email || '',
+                upvoteCount: report.upvoteCount || 0,
+                downvoteCount: report.downvoteCount || 0,
+                commentCount: report.commentCount || 0,
+                viewCount: report.viewCount || 0,
+                status: report.status || 'reported',
+                lastActivityAt: report.lastActivityAt || new Date(),
+                updatedAt: new Date()
+            },
+            { upsert: true }
+        );
+        console.log(`✅ Synced report ${reportId} to admin collection`);
+    } catch (error) {
+        console.error(`Error syncing report ${reportId} to admin:`, error);
+    }
+};
 
 // @desc    Create a new report
 // @route   POST /api/reports
@@ -7,11 +51,8 @@ const imagekit = require('../config/imagekit');
 exports.createReport = async (req, res) => {
     try {
         const { title, description, category, location } = req.body;
-
-        // Parse location if it's sent as string
         const parsedLocation = typeof location === 'string' ? JSON.parse(location) : location;
 
-        // Validate required fields
         if (!title || !description || !category || !parsedLocation) {
             return res.status(400).json({
                 success: false,
@@ -19,43 +60,25 @@ exports.createReport = async (req, res) => {
             });
         }
 
-        // Upload photos to ImageKit if any
+        // Upload photos to ImageKit
         const uploadedPhotos = [];
-
         if (req.files && req.files.length > 0) {
-            // Check if trying to upload more than 5 photos
             if (req.files.length > 5) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Maximum 5 photos allowed'
-                });
+                return res.status(400).json({ success: false, message: 'Maximum 5 photos allowed' });
             }
-
-            // Upload each photo
             for (const file of req.files) {
                 try {
-                    // Generate unique filename
                     const fileName = `report-${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
-
-                    // Upload to ImageKit
-                    const result = await imagekit.upload({
-                        file: file.buffer,
+                    const result = await imagekit.files.upload({
+                        file: file.buffer.toString('base64'),   // convert buffer to base64 string
                         fileName: fileName,
                         folder: '/abar-nosto/reports',
                         tags: ['report', category],
                         transformation: {
-                            post: [
-                                {
-                                    type: 'transformation',
-                                    value: 'w-800,h-600,fit-maintain'
-                                }
-                            ]
+                            post: [{ type: 'transformation', value: 'w-800,h-600,fit-maintain' }]
                         }
                     });
-
-                    // Generate thumbnail URL (300px width)
                     const thumbnailUrl = result.url.replace('/upload/', '/upload/tr:w-300/');
-
                     uploadedPhotos.push({
                         url: result.url,
                         fileId: result.fileId,
@@ -63,28 +86,21 @@ exports.createReport = async (req, res) => {
                     });
                 } catch (uploadError) {
                     console.error('ImageKit upload error:', uploadError);
-                    // Continue with other photos even if one fails
                 }
             }
         }
 
-        // 🔥 IMPORTANT: Check for nearby duplicate reports (within ~500m radius)
+        // Check for nearby duplicate reports
         const lat = parseFloat(parsedLocation.lat);
         const lng = parseFloat(parsedLocation.lng);
-        const latDelta = 0.0045; // Approximately 500m in latitude degrees
-        const lngDelta = 0.0045; // Approximately 500m in longitude degrees
+        const latDelta = 0.0045;
+        const lngDelta = 0.0045;
 
-        const nearbyReports = await Report.find({
-            'location.lat': {
-                $gte: lat - latDelta,
-                $lte: lat + latDelta
-            },
-            'location.lng': {
-                $gte: lng - lngDelta,
-                $lte: lng + lngDelta
-            },
-            category: category, // Same category
-            createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Last 7 days
+        const duplicateReports = await Report.find({
+            'location.lat': { $gte: lat - latDelta, $lte: lat + latDelta },
+            'location.lng': { $gte: lng - lngDelta, $lte: lng + lngDelta },
+            category: category,
+            createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
         })
             .populate('user', 'name')
             .select('title description location createdAt upvoteCount status')
@@ -104,18 +120,130 @@ exports.createReport = async (req, res) => {
             photos: uploadedPhotos
         });
 
-        // Populate user info for response
         await report.populate('user', 'name');
 
-        // 🔥 Return the nearby reports to frontend
+        // ========== ACTIVITY CREATION ==========
+        try {
+            console.log('Creating activity for new issue...');
+            await Activity.create({
+                type: 'new_issue',
+                issue: report._id,
+                issueTitle: report.title,
+                issueCategory: report.category,
+                user: req.user.id,
+                userName: req.user.name,
+                content: `New issue reported: ${report.title}`,
+                importance: 'high',
+                createdAt: new Date()
+            });
+            console.log(`✅ Activity created for new issue: ${report.title}`);
+        } catch (activityError) {
+            console.error('Activity creation failed:', activityError.message);
+        }
+
+        // ========== REPUTATION AWARD FOR CREATING REPORT (+10) ==========
+        try {
+            console.log('Awarding reputation for report creation...');
+            const userId = new mongoose.Types.ObjectId(req.user.id);
+            const reportId = new mongoose.Types.ObjectId(report._id);
+
+            const result = await User.updateOne(
+                { _id: userId },
+                {
+                    $inc: { reputation: 10 },
+                    $push: {
+                        reputationHistory: {
+                            change: 10,
+                            reason: `Reported a new issue: ${report.title}`,
+                            issueId: reportId,
+                            createdAt: new Date()
+                        }
+                    }
+                }
+            );
+
+            if (result.modifiedCount === 0) {
+                console.error(`❌ Reputation NOT updated for user ${req.user.id} – user not found`);
+            } else {
+                const updatedUser = await User.findById(userId).select('reputation name');
+                if (updatedUser) {
+                    console.log(`✅ +10 reputation to ${updatedUser.name} (Total: ${updatedUser.reputation})`);
+                }
+            }
+        } catch (repError) {
+            console.error('Reputation award failed:', repError.message);
+        }
+
+        // ========== ADMIN SYNC ==========
+        try {
+            const existingAdminIssue = await AdminIssue.findOne({ originalReportId: report._id });
+            if (!existingAdminIssue) {
+                const adminIssueData = {
+                    originalReportId: report._id,
+                    title: report.title,
+                    description: report.description,
+                    category: report.category,
+                    location: {
+                        address: report.location.address || 'Unknown',
+                        lat: report.location.lat || 0,
+                        lng: report.location.lng || 0
+                    },
+                    photos: report.photos || [],
+                    reportedBy: report.user,
+                    reporterName: req.user.name || 'Unknown',
+                    reporterEmail: req.user.email || '',
+                    upvoteCount: 0,
+                    downvoteCount: 0,
+                    commentCount: 0,
+                    viewCount: 0,
+                    status: 'reported',
+                    resolutionTimeline: { reportedAt: new Date() },
+                    lastActivityAt: new Date(),
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+                await AdminIssue.create(adminIssueData);
+                console.log(`✅ Auto-synced new report ${report._id} to admin collection`);
+            }
+        } catch (adminSyncError) {
+            console.error('Error syncing to admin collection:', adminSyncError);
+        }
+
+        // ========== NEARBY USER NOTIFICATIONS ==========
+        let nearbyUsers = await findNearbyUsers(parsedLocation.lat, parsedLocation.lng, 5000);
+        nearbyUsers = nearbyUsers.filter(u => u.userId.toString() !== req.user.id);
+        console.log(`📍 Found ${nearbyUsers.length} nearby users (excluding reporter) for location (${parsedLocation.lat}, ${parsedLocation.lng})`);
+
+        if (nearbyUsers.length === 0) {
+            console.log('ℹ️ No nearby users with saved location and matching radius');
+        } else {
+            console.log(`📢 Will notify ${nearbyUsers.length} users`);
+            await Promise.allSettled(
+                nearbyUsers.map(async ({ userId, preference }) => {
+                    const distance = getDistanceFromLatLonInMeters(
+                        parsedLocation.lat, parsedLocation.lng,
+                        preference.savedLocation.coordinates[1],
+                        preference.savedLocation.coordinates[0]
+                    );
+                    console.log(`📡 Notifying user ${userId} at distance ${Math.round(distance)}m`);
+                    return notifyUser(userId, {
+                        type: 'nearby_issue',
+                        title: `New issue near you: ${title}`,
+                        message: `${category} reported ${Math.round(distance)}m away`,
+                        relatedIssue: report._id,
+                        metadata: { distance }
+                    });
+                })
+            );
+        }
+
+        // Response
         res.status(201).json({
             success: true,
             report,
-            duplicates: nearbyReports, // Send similar issues to frontend
-            hasDuplicates: nearbyReports.length > 0,
-            message: nearbyReports.length > 0
-                ? 'Similar issues found nearby'
-                : 'Report created successfully'
+            duplicates: duplicateReports,
+            hasDuplicates: duplicateReports.length > 0,
+            message: duplicateReports.length > 0 ? 'Similar issues found nearby' : 'Report created successfully'
         });
 
     } catch (error) {
@@ -141,28 +269,15 @@ exports.getNearbyReports = async (req, res) => {
             });
         }
 
-        // Convert radius from meters to approximate degree deltas
-        // 1 degree lat ≈ 111 km, so radius/1000 * 0.009
         const radiusInKm = parseFloat(radius) / 1000;
         const latDelta = radiusInKm * 0.009;
         const lngDelta = radiusInKm * 0.009;
 
-        // Build query
         const query = {
-            'location.lat': {
-                $gte: parseFloat(lat) - latDelta,
-                $lte: parseFloat(lat) + latDelta
-            },
-            'location.lng': {
-                $gte: parseFloat(lng) - lngDelta,
-                $lte: parseFloat(lng) + lngDelta
-            }
+            'location.lat': { $gte: parseFloat(lat) - latDelta, $lte: parseFloat(lat) + latDelta },
+            'location.lng': { $gte: parseFloat(lng) - lngDelta, $lte: parseFloat(lng) + lngDelta }
         };
-
-        // Add category filter if provided
-        if (category) {
-            query.category = category;
-        }
+        if (category) query.category = category;
 
         const reports = await Report.find(query)
             .populate('user', 'name')
@@ -170,18 +285,10 @@ exports.getNearbyReports = async (req, res) => {
             .sort('-createdAt')
             .limit(20);
 
-        res.json({
-            success: true,
-            count: reports.length,
-            reports
-        });
-
+        res.json({ success: true, count: reports.length, reports });
     } catch (error) {
         console.error('Get nearby reports error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Server error'
-        });
+        res.status(500).json({ success: false, message: error.message || 'Server error' });
     }
 };
 
@@ -191,26 +298,16 @@ exports.getNearbyReports = async (req, res) => {
 exports.checkDuplicate = async (req, res) => {
     try {
         const { lat, lng, category } = req.body;
-
         if (!lat || !lng || !category) {
-            return res.status(400).json({
-                success: false,
-                message: 'Please provide location and category'
-            });
+            return res.status(400).json({ success: false, message: 'Please provide location and category' });
         }
 
-        const latDelta = 0.0045; // ~500m
+        const latDelta = 0.0045;
         const lngDelta = 0.0045;
 
         const nearbyReports = await Report.find({
-            'location.lat': {
-                $gte: parseFloat(lat) - latDelta,
-                $lte: parseFloat(lat) + latDelta
-            },
-            'location.lng': {
-                $gte: parseFloat(lng) - lngDelta,
-                $lte: parseFloat(lng) + lngDelta
-            },
+            'location.lat': { $gte: parseFloat(lat) - latDelta, $lte: parseFloat(lat) + latDelta },
+            'location.lng': { $gte: parseFloat(lng) - lngDelta, $lte: parseFloat(lng) + lngDelta },
             category: category,
             createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
         })
@@ -218,44 +315,23 @@ exports.checkDuplicate = async (req, res) => {
             .select('title description location createdAt upvoteCount status')
             .limit(10);
 
-        res.json({
-            success: true,
-            count: nearbyReports.length,
-            duplicates: nearbyReports,
-            hasDuplicates: nearbyReports.length > 0
-        });
-
+        res.json({ success: true, count: nearbyReports.length, duplicates: nearbyReports, hasDuplicates: nearbyReports.length > 0 });
     } catch (error) {
         console.error('Check duplicate error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Server error'
-        });
+        res.status(500).json({ success: false, message: error.message || 'Server error' });
     }
 };
-
 
 // @desc    Get user's reports
 // @route   GET /api/reports/my-reports
 // @access  Private
 exports.getMyReports = async (req, res) => {
     try {
-        const reports = await Report.find({ user: req.user.id })
-            .sort('-createdAt')
-            .select('-__v');
-
-        res.json({
-            success: true,
-            count: reports.length,
-            reports
-        });
-
+        const reports = await Report.find({ user: req.user.id }).sort('-createdAt').select('-__v');
+        res.json({ success: true, count: reports.length, reports });
     } catch (error) {
         console.error('Get my reports error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Server error'
-        });
+        res.status(500).json({ success: false, message: error.message || 'Server error' });
     }
 };
 
@@ -264,32 +340,16 @@ exports.getMyReports = async (req, res) => {
 // @access  Private
 exports.getReportById = async (req, res) => {
     try {
-        const report = await Report.findById(req.params.id)
-            .populate('user', 'name')
-            .select('-__v');
-
+        const report = await Report.findById(req.params.id).populate('user', 'name').select('-__v');
         if (!report) {
-            return res.status(404).json({
-                success: false,
-                message: 'Report not found'
-            });
+            return res.status(404).json({ success: false, message: 'Report not found' });
         }
-
-        // Add virtual field for upvote status
         const reportObj = report.toObject();
         reportObj.hasUpvoted = report.upvotes.includes(req.user.id);
-
-        res.json({
-            success: true,
-            report: reportObj
-        });
-
+        res.json({ success: true, report: reportObj });
     } catch (error) {
         console.error('Get report error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Server error'
-        });
+        res.status(500).json({ success: false, message: error.message || 'Server error' });
     }
 };
 
@@ -299,30 +359,100 @@ exports.getReportById = async (req, res) => {
 exports.upvoteReport = async (req, res) => {
     try {
         const report = await Report.findById(req.params.id);
-
         if (!report) {
-            return res.status(404).json({
-                success: false,
-                message: 'Report not found'
-            });
+            return res.status(404).json({ success: false, message: 'Report not found' });
         }
 
-        // Check if user already upvoted
         const hasUpvoted = report.upvotes.includes(req.user.id);
 
         if (hasUpvoted) {
             // Remove upvote
-            report.upvotes = report.upvotes.filter(
-                id => id.toString() !== req.user.id
-            );
+            report.upvotes = report.upvotes.filter(id => id.toString() !== req.user.id);
+            console.log('Upvote removed');
+
+            await Activity.create({
+                type: 'upvote_removed',
+                issue: report._id,
+                issueTitle: report.title,
+                issueCategory: report.category,
+                user: req.user.id,
+                userName: req.user.name,
+                content: `${req.user.name} removed their upvote`,
+                importance: 'low'
+            });
         } else {
             // Add upvote
             report.upvotes.push(req.user.id);
+            console.log('Upvote added');
+
+            await Activity.create({
+                type: 'upvote',
+                issue: report._id,
+                issueTitle: report.title,
+                issueCategory: report.category,
+                user: req.user.id,
+                userName: req.user.name,
+                content: `${req.user.name} upvoted this issue`,
+                importance: 'normal'
+            });
+
+            // Award reputation to report owner (+1) - Excluding self-upvotes
+            if (report.user.toString() !== req.user.id) {
+                try {
+                    console.log(`Awarding reputation to report owner: ${report.user}`);
+                    const ownerId = new mongoose.Types.ObjectId(report.user);
+                    const reportId = new mongoose.Types.ObjectId(report._id);
+
+                    const result = await User.updateOne(
+                        { _id: ownerId },
+                        {
+                            $inc: { reputation: 1 },
+                            $push: {
+                                reputationHistory: {
+                                    change: 1,
+                                    reason: `Received an upvote on report: ${report.title}`,
+                                    issueId: reportId,
+                                    createdAt: new Date()
+                                }
+                            }
+                        }
+                    );
+
+                    if (result.modifiedCount === 0) {
+                        console.error(`❌ Reputation NOT updated for owner ${report.user} – user not found`);
+                    } else {
+                        const updatedOwner = await User.findById(ownerId).select('reputation name');
+                        if (updatedOwner) {
+                            console.log(`✅ +1 reputation to ${updatedOwner.name} (Total: ${updatedOwner.reputation})`);
+                        }
+                    }
+                } catch (repError) {
+                    console.error('Reputation award failed:', repError.message);
+                }
+            } else {
+                console.log('Self-upvote - no reputation awarded');
+            }
         }
 
-        // Update upvote count
         report.upvoteCount = report.upvotes.length;
         await report.save();
+
+        // Sync to admin collection
+        await syncToAdminCollection(report._id);
+        try {
+            await AdminIssue.findOneAndUpdate(
+                { originalReportId: report._id },
+                {
+                    upvoteCount: report.upvoteCount,
+                    downvoteCount: report.downvoteCount,
+                    commentCount: report.commentCount,
+                    lastActivityAt: new Date()
+                }
+            );
+            console.log(`✅ Updated admin collection for report ${report._id}`);
+        } catch (adminUpdateError) {
+            console.error('Error updating admin collection:', adminUpdateError);
+        }
 
         res.json({
             success: true,
@@ -332,9 +462,6 @@ exports.upvoteReport = async (req, res) => {
 
     } catch (error) {
         console.error('Upvote error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Server error'
-        });
+        res.status(500).json({ success: false, message: error.message || 'Server error' });
     }
 };

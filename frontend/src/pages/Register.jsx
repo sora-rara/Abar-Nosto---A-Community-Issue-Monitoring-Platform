@@ -1,73 +1,298 @@
-import { useState } from 'react';
-import axios from 'axios';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import authService from '../services/auth';
 
-const Register = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-  });
-  const [message, setMessage] = useState('');
+function Register() {
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+    });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
+    const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+    const handleChange = (e) => {
+        setFormData({
+            ...formData,
+            [e.target.name]: e.target.value
+        });
+    };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault(); // Prevents the page from refreshing
-    try {
-      // Sending the data to your backend API
-      const response = await axios.post('http://localhost:5000/api/auth/register', formData);
-      
-      // If successful, save the token to the browser and show a success message
-      localStorage.setItem('token', response.data.token);
-      setMessage('Registration successful! Welcome to Abar Nosto!');
-      setFormData({ name: '', email: '', password: '' }); // Clear the form
-    } catch (error) {
-      setMessage(error.response?.data?.message || 'Registration failed. Try again.');
-    }
-  };
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccessMessage('');
 
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="px-8 py-6 mt-4 text-left bg-white shadow-lg rounded-lg w-1/3 min-w-[350px]">
-        <h3 className="text-2xl font-bold text-center text-blue-600">Register an Account</h3>
-        
-        {message && (
-          <div className="p-3 mt-4 text-sm text-center text-white bg-blue-500 rounded">
-            {message}
-          </div>
-        )}
+        if (formData.password !== formData.confirmPassword) {
+            setError('Passwords do not match');
+            return;
+        }
 
-        <form onSubmit={handleSubmit} className="mt-4">
-          <div className="mt-4">
-            <label className="block" htmlFor="name">Name</label>
-            <input type="text" placeholder="Full Name" name="name" value={formData.name} onChange={handleChange} required
-              className="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-600" />
-          </div>
-          <div className="mt-4">
-            <label className="block" htmlFor="email">Email</label>
-            <input type="email" placeholder="Email Address" name="email" value={formData.email} onChange={handleChange} required
-              className="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-600" />
-          </div>
-          <div className="mt-4">
-            <label className="block" htmlFor="password">Password</label>
-            <input type="password" placeholder="Password" name="password" value={formData.password} onChange={handleChange} required
-              className="w-full px-4 py-2 mt-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-600" />
-          </div>
-          <div className="flex items-baseline justify-between">
-            <button className="w-full px-6 py-2 mt-6 text-white bg-blue-600 rounded-lg hover:bg-blue-900">
-              Register
-            </button>
-            <p className="mt-4 text-sm text-center text-gray-600">
-                Already have an account? <Link to="/login" className="text-blue-600 hover:underline">Login here</Link>
-            </p>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
+        if (formData.password.length < 6) {
+            setError('Password must be at least 6 characters');
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const result = await authService.register(
+                formData.name,
+                formData.email,
+                formData.password
+            );
+
+            if (result.success) {
+                localStorage.setItem('user', JSON.stringify(result.user));
+                localStorage.setItem('token', result.user.token);
+                localStorage.setItem('userName', result.user.name);
+
+                setSuccessMessage('Account created successfully! Redirecting...');
+
+                setTimeout(() => {
+                    if (result.user.isAdmin || result.user.role === 'admin') {
+                        navigate('/admin');
+                    } else {
+                        navigate('/home');
+                    }
+                }, 1500);
+            }
+        } catch (err) {
+            setError(err.message || 'An error occurred during registration');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            padding: '20px',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        }}>
+            <div style={{
+                width: '100%',
+                maxWidth: '400px',
+                backgroundColor: 'white',
+                borderRadius: '20px',
+                padding: '40px',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            }}>
+                <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                    <h1 style={{
+                        fontSize: '28px',
+                        fontWeight: 'bold',
+                        color: '#667eea',
+                        marginBottom: '8px'
+                    }}>
+                        Create Account
+                    </h1>
+                    <p style={{ fontSize: '14px', color: '#666' }}>
+                        Join Abar Nosto community
+                    </p>
+                </div>
+
+                {error && (
+                    <div style={{
+                        backgroundColor: '#fee',
+                        border: '1px solid #fcc',
+                        color: '#c33',
+                        padding: '12px',
+                        borderRadius: '10px',
+                        marginBottom: '20px',
+                        fontSize: '14px',
+                        textAlign: 'center'
+                    }}>
+                        {error}
+                    </div>
+                )}
+
+                {successMessage && (
+                    <div style={{
+                        backgroundColor: '#e8f5e9',
+                        border: '1px solid #a5d6a7',
+                        color: '#2e7d32',
+                        padding: '12px',
+                        borderRadius: '10px',
+                        marginBottom: '20px',
+                        fontSize: '14px',
+                        textAlign: 'center'
+                    }}>
+                        {successMessage}
+                    </div>
+                )}
+
+                <form onSubmit={handleSubmit}>
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{
+                            display: 'block',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            color: '#333',
+                            marginBottom: '5px'
+                        }}>
+                            Full name
+                        </label>
+                        <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleChange}
+                            placeholder="John Doe"
+                            required
+                            style={{
+                                width: '100%',
+                                padding: '12px',
+                                border: '1px solid #ddd',
+                                borderRadius: '10px',
+                                fontSize: '14px',
+                                outline: 'none'
+                            }}
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{
+                            display: 'block',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            color: '#333',
+                            marginBottom: '5px'
+                        }}>
+                            Email address
+                        </label>
+                        <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            placeholder="you@example.com"
+                            required
+                            style={{
+                                width: '100%',
+                                padding: '12px',
+                                border: '1px solid #ddd',
+                                borderRadius: '10px',
+                                fontSize: '14px',
+                                outline: 'none'
+                            }}
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{
+                            display: 'block',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            color: '#333',
+                            marginBottom: '5px'
+                        }}>
+                            Password
+                        </label>
+                        <input
+                            type="password"
+                            name="password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            placeholder="••••••••"
+                            required
+                            style={{
+                                width: '100%',
+                                padding: '12px',
+                                border: '1px solid #ddd',
+                                borderRadius: '10px',
+                                fontSize: '14px',
+                                outline: 'none'
+                            }}
+                        />
+                        <small style={{
+                            fontSize: '12px',
+                            color: '#666',
+                            marginTop: '5px',
+                            display: 'block'
+                        }}>
+                            Minimum 6 characters
+                        </small>
+                    </div>
+
+                    <div style={{ marginBottom: '24px' }}>
+                        <label style={{
+                            display: 'block',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            color: '#333',
+                            marginBottom: '5px'
+                        }}>
+                            Confirm password
+                        </label>
+                        <input
+                            type="password"
+                            name="confirmPassword"
+                            value={formData.confirmPassword}
+                            onChange={handleChange}
+                            placeholder="••••••••"
+                            required
+                            style={{
+                                width: '100%',
+                                padding: '12px',
+                                border: '1px solid #ddd',
+                                borderRadius: '10px',
+                                fontSize: '14px',
+                                outline: 'none'
+                            }}
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        style={{
+                            width: '100%',
+                            padding: '14px',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '10px',
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            opacity: loading ? 0.7 : 1
+                        }}
+                    >
+                        {loading ? 'Creating account...' : 'Create account'}
+                    </button>
+                </form>
+
+                <div style={{
+                    textAlign: 'center',
+                    marginTop: '24px',
+                    paddingTop: '24px',
+                    borderTop: '1px solid #eee'
+                }}>
+                    <p style={{ fontSize: '14px', color: '#666' }}>
+                        Already have an account?{' '}
+                        <Link
+                            to="/login"
+                            style={{
+                                color: '#667eea',
+                                textDecoration: 'none',
+                                fontWeight: '600'
+                            }}
+                        >
+                            Sign in here
+                        </Link>
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default Register;

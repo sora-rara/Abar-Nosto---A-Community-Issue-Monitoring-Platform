@@ -4,17 +4,7 @@ const activitySchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: [
-            'new_issue', 
-            'new_comment', 
-            'status_update', 
-            'upvote',
-            'downvote',
-            'upvote_removed',
-            'downvote_removed',
-            'issue_resolved'
-			
-        ]
+        enum: ['new_issue', 'new_comment', 'status_update', 'upvote', 'downvote', 'upvote_removed', 'downvote_removed']
     },
     issue: { type: mongoose.Schema.Types.ObjectId, ref: 'Report', required: true },
     issueTitle: { type: String, required: true },
@@ -23,10 +13,7 @@ const activitySchema = new mongoose.Schema({
     userName: { type: String, required: true },
     content: { type: String },
     importance: { type: String, enum: ['low', 'normal', 'high'], default: 'normal' },
-    createdAt: { type: Date, default: Date.now, index: true }
+    createdAt: { type: Date, default: Date.now }
 });
-
-activitySchema.index({ createdAt: -1 });
-activitySchema.index({ issue: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Activity', activitySchema);

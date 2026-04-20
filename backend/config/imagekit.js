@@ -1,4 +1,4 @@
-const ImageKit = require('imagekit');
+const ImageKit = require('@imagekit/nodejs');
 
 // Initialize ImageKit with your credentials
 const imagekit = new ImageKit({

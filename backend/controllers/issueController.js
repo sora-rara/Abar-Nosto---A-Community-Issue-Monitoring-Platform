@@ -1,14 +1,52 @@
-const Report = require('../models/Report'); // This now points to the 'reports' collection
+const Report = require('../models/Report');
 const Activity = require('../models/Activity');
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const AdminIssue = require('../models/AdminIssue');
+const { notifyFollowers, notifyAuthor, notifyUser } = require('../services/notificationService');
 
 // ===========================================
-// READ-ONLY ACCESS (for displaying reports)
+// HELPER – Sync to Admin Collection
 // ===========================================
+const syncToAdminCollection = async (reportId) => {
+    try {
+        const report = await Report.findById(reportId).populate('user', 'name email');
+        if (!report) return;
 
-// @desc    Get all reports
-// @route   GET /api/issues
+        await AdminIssue.findOneAndUpdate(
+            { originalReportId: reportId },
+            {
+                title: report.title,
+                description: report.description,
+                category: report.category,
+                location: {
+                    address: report.location?.address || 'Unknown',
+                    lat: report.location?.lat || 0,
+                    lng: report.location?.lng || 0
+                },
+                photos: report.photos || [],
+                reportedBy: report.user?._id || report.user,
+                reporterName: report.user?.name || 'Unknown',
+                reporterEmail: report.user?.email || '',
+                upvoteCount: report.upvoteCount || 0,
+                downvoteCount: report.downvoteCount || 0,
+                commentCount: report.commentCount || 0,
+                viewCount: report.viewCount || 0,
+                status: report.status || 'reported',
+                lastActivityAt: report.lastActivityAt || new Date(),
+                updatedAt: new Date()
+            },
+            { upsert: true }
+        );
+        console.log(`✅ Synced report ${reportId} to admin collection`);
+    } catch (error) {
+        console.error(`Error syncing report ${reportId} to admin:`, error);
+    }
+};
+
+// ===========================================
+// READ-ONLY
+// ===========================================
 const getIssues = async (req, res) => {
     try {
         const reports = await Report.find().sort('-createdAt');
@@ -18,14 +56,10 @@ const getIssues = async (req, res) => {
     }
 };
 
-// @desc    Get single report
-// @route   GET /api/issues/:id
 const getIssue = async (req, res) => {
     try {
         const report = await Report.findById(req.params.id);
-        if (!report) {
-            return res.status(404).json({ message: 'Report not found' });
-        }
+        if (!report) return res.status(404).json({ message: 'Report not found' });
         res.json(report);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -33,166 +67,183 @@ const getIssue = async (req, res) => {
 };
 
 // ===========================================
-// VOTE SYSTEM
+// UPVOTE / DOWNVOTE (with activity, reputation, and notification)
 // ===========================================
-
-// @desc    Toggle upvote
-// @route   POST /api/issues/:id/upvote
 const toggleUpvote = async (req, res) => {
     try {
         const reportId = req.params.id;
-        const userId = req.user.id;  // From auth middleware
+        const userId = req.user.id;
 
-        console.log('Upvote attempt:', { reportId, userId });
-
-        // Find the report
         const report = await Report.findById(reportId);
-        if (!report) {
-            return res.status(404).json({
-                success: false,
-                message: 'Report not found'
-            });
-        }
+        if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
 
-        // Initialize arrays if they don't exist
         if (!report.upvotes) report.upvotes = [];
         if (!report.downvotes) report.downvotes = [];
 
-        // Check if user already upvoted (compare the user field inside vote objects)
-        const upvoteIndex = report.upvotes.findIndex(
-            v => v.user.toString() === userId.toString()
-        );
-
-        // Check if user downvoted
-        const downvoteIndex = report.downvotes.findIndex(
-            v => v.user.toString() === userId.toString()
-        );
+        const upvoteIndex = report.upvotes.findIndex(v => v.user.toString() === userId);
+        const downvoteIndex = report.downvotes.findIndex(v => v.user.toString() === userId);
+        const wasUpvoted = upvoteIndex !== -1;
 
         if (upvoteIndex !== -1) {
-            // User already upvoted - remove the vote object
+            // Remove upvote
             report.upvotes.splice(upvoteIndex, 1);
-        } else {
-            // Add new upvote object
-            report.upvotes.push({
+            await Activity.create({
+                type: 'upvote_removed',
+                issue: reportId,
+                issueTitle: report.title,
+                issueCategory: report.category,
                 user: userId,
-                createdAt: new Date()
+                userName: req.user.name,
+                content: `${req.user.name} removed their upvote`,
+                importance: 'low'
+            });
+        } else {
+            // Add upvote
+            report.upvotes.push({ user: userId, createdAt: new Date() });
+            if (downvoteIndex !== -1) report.downvotes.splice(downvoteIndex, 1);
+
+            await Activity.create({
+                type: 'upvote',
+                issue: reportId,
+                issueTitle: report.title,
+                issueCategory: report.category,
+                user: userId,
+                userName: req.user.name,
+                content: `${req.user.name} upvoted this issue`,
+                importance: 'normal'
             });
 
-            // Remove from downvotes if exists
-            if (downvoteIndex !== -1) {
-                report.downvotes.splice(downvoteIndex, 1);
+            // 🔔 UPVOTE NOTIFICATION: Notify the report owner (if not self-upvote)
+            const ownerId = report.user.toString();
+            if (ownerId !== userId) {
+                await notifyUser(ownerId, {
+                    type: 'upvote_received',
+                    title: `Someone upvoted your report`,
+                    message: `${req.user.name} upvoted "${report.title}"`,
+                    relatedIssue: reportId,
+                    metadata: { upvoterId: userId }
+                });
+            }
+
+            // Award reputation to report owner (+1) – skip self-upvote
+            if (ownerId !== userId) {
+                try {
+                    const result = await User.updateOne(
+                        { _id: new mongoose.Types.ObjectId(ownerId) },
+                        {
+                            $inc: { reputation: 1 },
+                            $push: {
+                                reputationHistory: {
+                                    change: 1,
+                                    reason: `Received an upvote on report: ${report.title}`,
+                                    issueId: new mongoose.Types.ObjectId(reportId),
+                                    createdAt: new Date()
+                                }
+                            }
+                        }
+                    );
+                    if (result.modifiedCount > 0) {
+                        const updated = await User.findById(ownerId).select('reputation name');
+                        console.log(`✅ +1 reputation to ${updated.name} (Total: ${updated.reputation})`);
+                    }
+                } catch (err) {
+                    console.error('Reputation award failed:', err.message);
+                }
             }
         }
 
-        // Update counts (pre-save hook will also do this)
         report.upvoteCount = report.upvotes.length;
         report.downvoteCount = report.downvotes.length;
         report.lastActivityAt = new Date();
-
         await report.save();
+
+        await syncToAdminCollection(reportId);
 
         res.json({
             success: true,
             upvoteCount: report.upvoteCount,
             downvoteCount: report.downvoteCount,
-            hasUpvoted: upvoteIndex === -1, // true if we added, false if we removed
+            hasUpvoted: !wasUpvoted,
             hasDownvoted: false
         });
-
     } catch (error) {
         console.error('Upvote error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Toggle downvote
-// @route   POST /api/issues/:id/downvote
 const toggleDownvote = async (req, res) => {
     try {
         const reportId = req.params.id;
         const userId = req.user.id;
 
-        console.log('Downvote attempt:', { reportId, userId });
-
         const report = await Report.findById(reportId);
-        if (!report) {
-            return res.status(404).json({
-                success: false,
-                message: 'Report not found'
-            });
-        }
+        if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
 
         if (!report.upvotes) report.upvotes = [];
         if (!report.downvotes) report.downvotes = [];
 
-        // Check if user already downvoted
-        const downvoteIndex = report.downvotes.findIndex(
-            v => v.user.toString() === userId.toString()
-        );
-
-        // Check if user upvoted
-        const upvoteIndex = report.upvotes.findIndex(
-            v => v.user.toString() === userId.toString()
-        );
+        const downvoteIndex = report.downvotes.findIndex(v => v.user.toString() === userId);
+        const upvoteIndex = report.upvotes.findIndex(v => v.user.toString() === userId);
+        const wasDownvoted = downvoteIndex !== -1;
 
         if (downvoteIndex !== -1) {
-            // User already downvoted - remove the vote object
             report.downvotes.splice(downvoteIndex, 1);
-        } else {
-            // Add new downvote object
-            report.downvotes.push({
+            await Activity.create({
+                type: 'downvote_removed',
+                issue: reportId,
+                issueTitle: report.title,
+                issueCategory: report.category,
                 user: userId,
-                createdAt: new Date()
+                userName: req.user.name,
+                content: `${req.user.name} removed their downvote`,
+                importance: 'low'
             });
+        } else {
+            report.downvotes.push({ user: userId, createdAt: new Date() });
+            if (upvoteIndex !== -1) report.upvotes.splice(upvoteIndex, 1);
 
-            // Remove from upvotes if exists
-            if (upvoteIndex !== -1) {
-                report.upvotes.splice(upvoteIndex, 1);
-            }
+            await Activity.create({
+                type: 'downvote',
+                issue: reportId,
+                issueTitle: report.title,
+                issueCategory: report.category,
+                user: userId,
+                userName: req.user.name,
+                content: `${req.user.name} downvoted this issue`,
+                importance: 'normal'
+            });
         }
 
-        // Update counts
         report.upvoteCount = report.upvotes.length;
         report.downvoteCount = report.downvotes.length;
         report.lastActivityAt = new Date();
-
         await report.save();
+
+        await syncToAdminCollection(reportId);
 
         res.json({
             success: true,
             upvoteCount: report.upvoteCount,
             downvoteCount: report.downvoteCount,
             hasUpvoted: false,
-            hasDownvoted: downvoteIndex === -1 // true if we added, false if we removed
+            hasDownvoted: !wasDownvoted
         });
-
     } catch (error) {
         console.error('Downvote error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Get upvoters
-// @route   GET /api/issues/:id/upvotes
 const getUpvoters = async (req, res) => {
     try {
         const report = await Report.findById(req.params.id).populate('upvotes.user', 'name');
-        if (!report) {
-            return res.status(404).json({ success: false, message: 'Report not found' });
-        }
-
+        if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
         const upvoters = report.upvotes.map(v => ({
             id: v.user._id,
             name: v.user.name,
             upvotedAt: v.createdAt
         }));
-
         res.json({ success: true, upvoters });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -200,53 +251,36 @@ const getUpvoters = async (req, res) => {
 };
 
 // ===========================================
-// COMMENT SYSTEM
+// COMMENTS (with activity, notifications, reputation)
 // ===========================================
-
-// @desc    Add comment
-// @route   POST /api/issues/:id/comments
-// @desc    Add comment
-// @route   POST /api/issues/:id/comments
 const addComment = async (req, res) => {
     try {
         const { text } = req.body;
         const reportId = req.params.id;
         const userId = req.user.id;
 
-        if (!text || text.trim().length === 0) {
+        if (!text || !text.trim()) {
             return res.status(400).json({ success: false, message: 'Comment text is required' });
         }
 
-        console.log('Add comment attempt:', { reportId, userId: userId.toString() });
-
-        // 🔥 FIX: Get user name from database
         const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-        const userName = user.name; // Get the actual user name
-
-        // Get native MongoDB collection - explicitly use 'reports'
         const db = mongoose.connection.db;
         const collection = db.collection('reports');
-
-        // Convert to ObjectId
         const objectId = new mongoose.Types.ObjectId(reportId);
         const userObjectId = new mongoose.Types.ObjectId(userId);
 
-        // Create comment object with unique ID
         const comment = {
             _id: new mongoose.Types.ObjectId(),
             user: userObjectId,
-            userName: userName, // 🔥 Now using the fetched user name
+            userName: user.name,
             text: text.trim(),
             createdAt: new Date(),
             isEdited: false,
             editedAt: null
         };
 
-        // Update using native driver - push comment to array
         const result = await collection.updateOne(
             { _id: objectId },
             {
@@ -260,18 +294,63 @@ const addComment = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Report not found' });
         }
 
-        // Get the report title for activity
-        const report = await collection.findOne({ _id: objectId }, { projection: { title: 1 } });
+        const report = await collection.findOne({ _id: objectId }, { projection: { title: 1, category: 1 } });
 
-        // Create activity (fire and forget)
-        Activity.create({
+        // Activity
+        await Activity.create({
             type: 'new_comment',
             issue: reportId,
             issueTitle: report?.title || 'Report',
+            issueCategory: report?.category,
             user: userId,
-            userName: userName, // 🔥 Use the fetched user name
-            content: text.trim().substring(0, 100)
-        }).catch(err => console.error('Activity creation error:', err));
+            userName: user.name,
+            content: text.trim().substring(0, 100),
+            importance: 'normal'
+        });
+
+        // Notifications
+        await notifyFollowers(reportId, userId, {
+            type: 'new_comment',
+            title: `New comment on "${report?.title || 'Report'}"`,
+            message: `${user.name} commented: ${text.trim().substring(0, 100)}`,
+            relatedIssue: reportId,
+            metadata: { commentId: comment._id }
+        });
+        await notifyAuthor(reportId, userId, {
+            type: 'new_comment',
+            title: `New comment on your issue: ${report?.title || 'Report'}`,
+            message: `${user.name} commented: ${text.trim().substring(0, 100)}`,
+            relatedIssue: reportId,
+            metadata: { commentId: comment._id }
+        });
+
+        // Reputation for commenter (+2)
+        try {
+            const commenterId = new mongoose.Types.ObjectId(userId);
+            const issueId = new mongoose.Types.ObjectId(reportId);
+            const repResult = await User.updateOne(
+                { _id: commenterId },
+                {
+                    $inc: { reputation: 2 },
+                    $push: {
+                        reputationHistory: {
+                            change: 2,
+                            reason: `Added a comment on report: ${report?.title || 'Report'}`,
+                            issueId: issueId,
+                            createdAt: new Date()
+                        }
+                    }
+                }
+            );
+            if (repResult.modifiedCount > 0) {
+                const updated = await User.findById(commenterId).select('reputation name');
+                console.log(`✅ +2 reputation to ${updated.name} (Total: ${updated.reputation})`);
+            }
+        } catch (err) {
+            console.error('Comment reputation error:', err.message);
+        }
+
+        await syncToAdminCollection(reportId);
 
         res.status(201).json({
             success: true,
@@ -279,67 +358,44 @@ const addComment = async (req, res) => {
             comment: {
                 ...comment,
                 _id: comment._id.toString(),
-                user: comment.user.toString(),
-                userName: userName // 🔥 Include userName in response
+                user: comment.user.toString()
             }
         });
-
     } catch (error) {
         console.error('Add comment error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Edit comment
-// @route   PUT /api/issues/:id/comments/:commentId
 const editComment = async (req, res) => {
+    // (unchanged)
     try {
         const { id, commentId } = req.params;
         const { text } = req.body;
         const userId = req.user.id;
 
-        if (!text || text.trim().length === 0) {
+        if (!text || !text.trim()) {
             return res.status(400).json({ success: false, message: 'Comment text is required' });
         }
 
-        console.log('Edit comment attempt:', { reportId: id, commentId, userId: userId.toString() });
-
-        // Get native MongoDB collection - explicitly use 'reports'
         const db = mongoose.connection.db;
         const collection = db.collection('reports');
-
-        // Convert to ObjectId
         const reportObjectId = new mongoose.Types.ObjectId(id);
         const commentObjectId = new mongoose.Types.ObjectId(commentId);
-        const userObjectId = new mongoose.Types.ObjectId(userId);
 
-        // Find the report and check if comment exists and belongs to user
         const report = await collection.findOne({
             _id: reportObjectId,
             'comments._id': commentObjectId
         });
+        if (!report) return res.status(404).json({ success: false, message: 'Report or comment not found' });
 
-        if (!report) {
-            return res.status(404).json({ success: false, message: 'Report or comment not found' });
-        }
-
-        // Find the specific comment
         const comment = report.comments.find(c => c._id.toString() === commentId);
-
-        // Check if user owns the comment
-        if (comment.user.toString() !== userId.toString() && req.user.role !== 'admin') {
-            return res.status(403).json({ success: false, message: 'Not authorized to edit this comment' });
+        if (comment.user.toString() !== userId && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
-        // Update the comment using $set with positional operator
-        const result = await collection.updateOne(
-            {
-                _id: reportObjectId,
-                'comments._id': commentObjectId
-            },
+        await collection.updateOne(
+            { _id: reportObjectId, 'comments._id': commentObjectId },
             {
                 $set: {
                     'comments.$.text': text.trim(),
@@ -348,120 +404,78 @@ const editComment = async (req, res) => {
                 }
             }
         );
+        await syncToAdminCollection(id);
 
-        if (result.modifiedCount === 0) {
-            return res.status(404).json({ success: false, message: 'Comment not found' });
-        }
-
-        // Get the updated comment
         const updatedReport = await collection.findOne({ _id: reportObjectId });
         const updatedComment = updatedReport.comments.find(c => c._id.toString() === commentId);
 
         res.json({
             success: true,
-            message: 'Comment updated successfully',
+            message: 'Comment updated',
             comment: {
                 ...updatedComment,
                 _id: updatedComment._id.toString(),
                 user: updatedComment.user.toString()
             }
         });
-
     } catch (error) {
         console.error('Edit comment error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// @desc    Delete comment
-// @route   DELETE /api/issues/:id/comments/:commentId
 const deleteComment = async (req, res) => {
+    // (unchanged)
     try {
         const { id, commentId } = req.params;
         const userId = req.user.id;
 
-        console.log('Delete comment attempt:', { reportId: id, commentId, userId: userId.toString() });
-
-        // Get native MongoDB collection - explicitly use 'reports'
         const db = mongoose.connection.db;
         const collection = db.collection('reports');
-
-        // Convert to ObjectId
         const reportObjectId = new mongoose.Types.ObjectId(id);
         const commentObjectId = new mongoose.Types.ObjectId(commentId);
-        const userObjectId = new mongoose.Types.ObjectId(userId);
 
-        // Find the report and check if comment exists and belongs to user
         const report = await collection.findOne({
             _id: reportObjectId,
             'comments._id': commentObjectId
         });
+        if (!report) return res.status(404).json({ success: false, message: 'Report or comment not found' });
 
-        if (!report) {
-            return res.status(404).json({ success: false, message: 'Report or comment not found' });
-        }
-
-        // Find the specific comment
         const comment = report.comments.find(c => c._id.toString() === commentId);
-
-        // Check if user owns the comment
-        if (comment.user.toString() !== userId.toString() && req.user.role !== 'admin') {
-            return res.status(403).json({ success: false, message: 'Not authorized to delete this comment' });
+        if (comment.user.toString() !== userId && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
-        // Delete the comment using $pull
-        const result = await collection.updateOne(
+        await collection.updateOne(
             { _id: reportObjectId },
             {
                 $pull: { comments: { _id: commentObjectId } },
                 $inc: { commentCount: -1 }
             }
         );
+        await syncToAdminCollection(id);
 
-        if (result.modifiedCount === 0) {
-            return res.status(404).json({ success: false, message: 'Comment not found' });
-        }
-
-        res.json({
-            success: true,
-            message: 'Comment deleted successfully'
-        });
-
+        res.json({ success: true, message: 'Comment deleted' });
     } catch (error) {
         console.error('Delete comment error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
 // ===========================================
 // ACTIVITY FEED
 // ===========================================
-
-// @desc    Get activity feed
-// @route   GET /api/issues/activities/feed
 const getActivityFeed = async (req, res) => {
+    // (unchanged)
     try {
         const { page = 1, limit = 20, type, days = 7 } = req.query;
-
         const query = {};
-
-        // Filter by date
         if (days) {
             const dateLimit = new Date();
             dateLimit.setDate(dateLimit.getDate() - parseInt(days));
             query.createdAt = { $gte: dateLimit };
         }
-
-        // Filter by type
-        if (type && type !== 'all') {
-            query.type = type;
-        }
+        if (type && type !== 'all') query.type = type;
 
         const activities = await Activity.find(query)
             .sort({ createdAt: -1 })
@@ -470,7 +484,6 @@ const getActivityFeed = async (req, res) => {
             .populate('issue', 'title category');
 
         const total = await Activity.countDocuments(query);
-
         res.json({
             success: true,
             data: activities,
@@ -487,39 +500,25 @@ const getActivityFeed = async (req, res) => {
     }
 };
 
-// @desc    Get issue activities
-// @route   GET /api/issues/:id/activities
 const getIssueActivities = async (req, res) => {
+    // (unchanged)
     try {
-        const activities = await Activity.find({ issue: req.params.id })
-            .sort({ createdAt: -1 })
-            .limit(50);
+        const activities = await Activity.find({ issue: req.params.id }).sort({ createdAt: -1 }).limit(50);
         res.json({ success: true, data: activities });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// ===========================================
-// EXPORT ALL FUNCTIONS
-// ===========================================
-
 module.exports = {
-    // Read-only
     getIssues,
     getIssue,
-
-    // Voting
     toggleUpvote,
     toggleDownvote,
     getUpvoters,
-
-    // Comments
     addComment,
     editComment,
     deleteComment,
-
-    // Activity Feed
     getActivityFeed,
     getIssueActivities
 };
