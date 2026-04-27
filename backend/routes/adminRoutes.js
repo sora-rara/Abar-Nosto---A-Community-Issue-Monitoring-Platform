@@ -9,7 +9,8 @@ const {
     getStats,
     syncReports,
     archiveIssue,
-    reactivateIssue
+    reactivateIssue,
+    exportData
 } = require('../controllers/adminController');
 const AdminIssue = require('../models/AdminIssue');
 const User = require('../models/User');
@@ -31,7 +32,7 @@ try {
 }
 
 // Verify all required functions exist
-const requiredFunctions = ['getAllIssues', 'getIssueDetails', 'updateStatus', 'publishFinalUpdate', 'getStats', 'syncReports'];
+const requiredFunctions = ['getAllIssues', 'getIssueDetails', 'updateStatus', 'publishFinalUpdate', 'getStats', 'syncReports', 'exportData'];
 for (const fn of requiredFunctions) {
     if (typeof adminController[fn] !== 'function') {
         console.error(`❌ adminController.${fn} is not a function (${typeof adminController[fn]})`);
@@ -48,6 +49,7 @@ router.use(protect, admin);
 
 // Dashboard stats
 router.get('/stats', getStats);
+router.get('/export', exportData);
 
 // Sync reports to admin issues
 router.post('/sync', syncReports);

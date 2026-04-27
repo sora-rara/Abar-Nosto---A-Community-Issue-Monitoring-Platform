@@ -457,3 +457,35 @@ exports.reactivateIssue = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+exports.exportData = async (req, res) => {
+    try {
+        // Fetch all issues from the Admin database
+        const issues = await AdminIssue.find().sort('-createdAt');
+
+        // Build the CSV Header
+        let csv = 'Issue ID,Title,Category,Status,Reported By,Email,Upvotes,Date,Address\n';
+
+        // Loop through reports and add rows
+        issues.forEach(issue => {
+            const id = issue._id;
+            const title = `"${(issue.title || '').replace(/"/g, '""')}"`;
+            const category = issue.category || 'N/A';
+            const status = issue.status || 'N/A';
+            const reportedBy = `"${issue.reporterName || 'Unknown'}"`;
+            const email = issue.reporterEmail || 'N/A';
+            const upvotes = issue.upvoteCount || 0;
+            const date = new Date(issue.createdAt).toLocaleDateString();
+            const address = `"${(issue.location?.address || '').replace(/"/g, '""')}"`;
+
+            csv += `${id},${title},${category},${status},${reportedBy},${email},${upvotes},${date},${address}\n`;
+        });
+
+        // Send back as a downloadable file
+        res.header('Content-Type', 'text/csv');
+        res.attachment(`abar-nosto-database-export-${new Date().toISOString().split('T')[0]}.csv`);
+        return res.send(csv);
+    } catch (error) {
+        console.error('Export error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};

@@ -53,30 +53,26 @@ const syncToAdminCollection = async (reportId) => {
 // ===========================================
 const getIssues = async (req, res) => {
     try {
-        const { category, status, sort } = req.query;
+        // 1. Make sure ward and area are extracted from the query
+        const { status, category, page = 1, limit = 10, sort = '-createdAt', exclude_resolved, ward, area } = req.query;
 
         const filter = {};
-        if (category && category !== 'all') {
-            filter.category = category;
+        
+        // (Your existing filters...)
+        if (status && status !== 'all') filter.status = status;
+        if (category && category !== 'all') filter.category = category;
+        if (exclude_resolved === 'true') filter.status = { $ne: 'resolved' };
+
+        // 2. ADD THE REGEX LOCATION SEARCH LOGIC
+        if (area && area !== 'all') {
+            // Search the address string for the specific area name (e.g., "Uttara Model Town")
+            filter['location.address'] = { $regex: area, $options: 'i' };
+        } else if (ward && ward !== 'all') {
+            // If they only picked a ward, search the address string for the ward number
+            filter['location.address'] = { $regex: `Ward ${ward}`, $options: 'i' };
         }
 
-        // If a specific status is requested (including 'archived'), use it
-        if (status && status !== 'all') {
-            filter.status = status;
-        } else {
-            // Default: exclude archived issues
-            filter.status = { $ne: 'archived' };
-        }
-
-        let sortOption = '-createdAt';
-        if (sort === 'popular') {
-            sortOption = '-upvoteCount';
-        } else if (sort === 'recent') {
-            sortOption = '-createdAt';
-        }
-
-        const reports = await Report.find(filter).sort(sortOption);
-        res.json(reports);
+        const skip = (parseInt(page) - 1) * parseInt(limit);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

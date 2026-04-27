@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, GeoJSON, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, GeoJSON } from 'react-leaflet';
 import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -16,17 +16,6 @@ const MapPage = () => {
     const navigate = useNavigate();
     const [geoJsonData, setGeoJsonData] = useState(null);
     const [issues, setIssues] = useState([]); 
-
-    // Form State
-    const [showForm, setShowForm] = useState(false);
-    const [newReport, setNewReport] = useState({
-        type: 'road',
-        description: '',
-        lat: '',
-        lng: '',
-        address: 'Fetching address...',
-        imageFile: null
-    });
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -45,10 +34,11 @@ const MapPage = () => {
 
     const fetchIssues = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/issues');
-            // SAFETY NET 1: Ensure we only set the array if the backend actually sent an array!
+            const response = await axios.get('http://localhost:5000/api/issues?exclude_resolved=true');
             if (Array.isArray(response.data)) {
-                setIssues(response.data);
+                // 🛑 ABSOLUTE FRONTEND FILTER: Forcefully remove any 'resolved' issues
+                const activeIssues = response.data.filter(issue => issue.status !== 'resolved');
+                setIssues(activeIssues);
             } else {
                 console.error("Backend did not send an array:", response.data);
                 setIssues([]);
@@ -71,71 +61,34 @@ const MapPage = () => {
         return iconRoad; 
     };
 
-    const MapClickHandler = () => {
-        useMapEvents({
-            click: async (e) => {
-                const { lat, lng } = e.latlng;
-                setShowForm(true);
-                setNewReport({ ...newReport, type: 'road', description: '', lat, lng, address: 'Loading address...' });
+    const trendingIssues = [...issues]
+        .sort((a, b) => (b.upvoteCount || 0) - (a.upvoteCount || 0))
+        .slice(0, 3);
 
-                try {
-                    const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-                    const address = response.data.display_name || 'Unknown Location';
-                    setNewReport(prev => ({ ...prev, address }));
-                } catch (error) {
-                    setNewReport(prev => ({ ...prev, address: 'Could not fetch address' }));
-                }
-            }
-        });
-        return null;
-    };
-
-    const handleSubmit = async (e) => {
-            e.preventDefault();
-            try {
-                const token = localStorage.getItem('token');
-                const config = { headers: { Authorization: `Bearer ${token}` } }; // Axios is smart enough to set the multipart header automatically!
-
-                // Create a new FormData object
-                const formData = new FormData();
-                formData.append('type', newReport.type);
-                formData.append('description', newReport.description);
-                formData.append('lat', newReport.lat);
-                formData.append('lng', newReport.lng);
-                formData.append('address', newReport.address);
-                if (newReport.imageFile) {
-                    formData.append('image', newReport.imageFile);
-                }
-
-                // Send the formData instead of the JSON object
-                await axios.post('http://localhost:5000/api/issues', formData, config);
-                
-                setShowForm(false);
-                fetchIssues(); 
-                alert('Issue reported successfully!');
-            } catch (error) {
-                console.error("Error submitting issue:", error);
-                alert('Failed to report issue. Please try again.');
-            }
-        };
+// Group issues by identical address (Fixes the precise map-click variation issue)
+    const groupedIssues = issues.reduce((acc, issue) => {
+        // Check if location and address exist
+        if (!issue.location || !issue.location.address) return acc;
+        
+        // Create a unique key based on the EXACT text address instead of numbers
+        const key = issue.location.address;
+        
+        if (!acc[key]) {
+            acc[key] = [];
+        }
+        acc[key].push(issue);
+        return acc;
+    }, {});
 
     return (
         <div className="flex flex-col min-h-screen bg-gray-100">
-            <header className="flex items-center justify-between p-4 text-white bg-blue-600 shadow-md z-20 relative">
-                <button onClick={handleLogout} className="px-4 py-2 text-sm bg-blue-800 rounded hover:bg-red-600">Logout</button>
-                <h1 className="text-xl font-bold">Abar Nosto!</h1>
-                <div className="flex gap-4">
-                    <Link to="/dashboard" className="px-4 py-2 text-sm bg-blue-800 rounded hover:bg-blue-900">Home</Link>
-                    <button className="px-4 py-2 text-sm font-bold bg-green-500 rounded hover:bg-green-600">🗺️ Map</button>
-                </div>
-            </header>
-
             <div className="flex flex-grow overflow-hidden relative">
+                
+                {/* SIDEBAR */}
                 <aside className="w-80 bg-slate-800 text-white flex flex-col shadow-lg z-10">
                     <div className="p-5 border-b border-slate-600 flex-shrink-0">
                         <h2 className="text-xl font-bold mb-2 text-center">Indicators</h2>
-                        <p className="text-xs text-center text-slate-400 mb-4">(Click anywhere on the map to report an issue!)</p>
-                        <div className="flex flex-col gap-4 text-sm">
+                        <div className="flex flex-col gap-4 text-sm mt-4">
                             <div className="flex items-center gap-3">
                                 <img src="/icon-black.png" alt="Road" className="w-6 h-6" />
                                 <span><strong>Black:</strong> Road/Drain Issue</span>
@@ -148,12 +101,36 @@ const MapPage = () => {
                                 <img src="/icon-red.png" alt="Accident" className="w-6 h-6" />
                                 <span><strong>Red:</strong> Fatal Accident / Fire</span>
                             </div>
-                            <div>  
-                                <span><strong>N.B.:</strong> TO REPORT CLICK ON THE EXACT LOCATION ON THE MAP. </span>
-                            </div>
                         </div>
                     </div>
-
+                    {/* TRENDING REPORTS SECTION */}
+                    <div className="p-5 border-b border-slate-600 bg-slate-900/50">
+                        <h2 className="text-xl font-bold mb-4 text-center text-orange-400">🔥 Trending</h2>
+                        <div className="flex flex-col gap-3">
+                            {trendingIssues.length === 0 ? (
+                                <p className="text-center text-gray-400 text-sm">No trending issues.</p>
+                            ) : (
+                                trendingIssues.map((issue, idx) => (
+                                    <div key={`trend-${issue._id}`} className="bg-slate-800 p-3 rounded shadow border border-orange-500/50 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 bg-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl">
+                                            #{idx + 1}
+                                        </div>
+                                        <div className="flex items-center gap-2 mb-1 pr-6">
+                                            <span className="text-orange-400 font-bold text-sm">👍 {issue.upvoteCount || 0}</span>
+                                            <h3 className="font-bold capitalize text-blue-300 text-sm truncate">{issue.type} Issue</h3>
+                                        </div>
+                                        <p className="text-xs text-gray-300 line-clamp-2">{issue.description}</p>
+                                        <Link 
+                                            to={`/dashboard?highlight=${issue._id}`} 
+                                            className="text-[10px] text-orange-400 hover:text-orange-300 mt-2 inline-block font-semibold"
+                                        >
+                                            View in Dashboard →
+                                        </Link>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
                     <div className="p-5 flex-grow overflow-y-auto">
                         <h2 className="text-xl font-bold mb-4 text-center">LIVE REPORTS</h2>
                         <div className="flex flex-col gap-4">
@@ -161,7 +138,6 @@ const MapPage = () => {
                                 <p className="text-center text-gray-400">No issues reported yet.</p>
                             ) : (
                                 issues.map((issue) => {
-                                    // SAFETY NET 2: Skip rendering if location data is missing
                                     if (!issue.location) return null; 
                                     
                                     return (
@@ -171,7 +147,7 @@ const MapPage = () => {
                                                 <h3 className="font-bold capitalize text-blue-300">{issue.type} Issue</h3>
                                             </div>
                                             <p className="text-sm text-gray-200">{issue.description}</p>
-                                            {/* RENDER THE IMAGE IF IT EXISTS */}
+                                            
                                             {issue.image && (
                                                 <img 
                                                     src={`http://localhost:5000${issue.image}`} 
@@ -188,68 +164,64 @@ const MapPage = () => {
                     </div>
                 </aside>
 
+                {/* MAP AREA */}
                 <main className="flex-grow relative z-0">
-                    <MapContainer center={dhakaCenter} zoom={11} className="w-full h-full cursor-crosshair">
+                    <MapContainer center={dhakaCenter} zoom={11} className="w-full h-full">
                         <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                         
                         {geoJsonData && <GeoJSON data={geoJsonData} style={{ color: "#2563EB", weight: 2, fillOpacity: 0.1 }} />}
 
-                        {issues.map((issue) => {
-                            // SAFETY NET 3: Skip placing the marker if GPS coordinates are missing
-                            if (!issue.location || !issue.location.lat || !issue.location.lng) return null;
+                        {Object.values(groupedIssues).map((group) => {
+                            // We use the first issue in the group to determine the coordinate and icon
+                            const firstIssue = group[0];
+                            
+                            // Create a unique key for the marker
+                            const markerKey = `group-${firstIssue.location.lat}-${firstIssue.location.lng}`;
 
                             return (
-                                <Marker key={issue._id || Math.random()} position={[issue.location.lat, issue.location.lng]} icon={getIconForType(issue.type)}>
+                                <Marker 
+                                    key={markerKey} 
+                                    position={[firstIssue.location.lat, firstIssue.location.lng]} 
+                                    icon={getIconForType(firstIssue.type)}
+                                >
                                     <Popup>
-                                        <strong className="capitalize">{issue.type} Issue</strong><br/>
-                                        {issue.description}<br/>
-                                        <span className="text-xs text-gray-500">{issue.location.address}</span>
+                                        {/* Scrollable container for multiple issues */}
+                                        <div className="max-h-[250px] overflow-y-auto pr-2 w-48">
+                                            <div className="mb-2 pb-2 border-b border-gray-300 sticky top-0 bg-white z-10">
+                                                <strong className="text-blue-800">
+                                                    {group.length} Issue{group.length > 1 ? 's' : ''} Here
+                                                </strong>
+                                                <div className="text-[10px] text-gray-500 leading-tight mt-1">
+                                                    {firstIssue.location.address}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* List out every issue at this location */}
+                                            <div className="flex flex-col gap-3">
+                                                {group.map((issue) => (
+                                                    <div key={issue._id} className="bg-gray-50 p-2 rounded border border-gray-200">
+                                                        <strong className="capitalize text-sm text-gray-800 flex items-center gap-1">
+                                                            <span className="text-[10px]">{issue.type === 'accident' ? '🔴' : issue.type === 'disaster' ? '🟡' : '⚫'}</span>
+                                                            {issue.type}
+                                                        </strong>
+                                                        <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                                            {issue.description}
+                                                        </p>
+                                                        <Link 
+                                                            to={`/dashboard?highlight=${issue._id}`} 
+                                                            className="mt-2 block w-full py-1 bg-orange-500 text-white text-[10px] uppercase tracking-wider font-bold rounded hover:bg-orange-600 text-center transition-colors"
+                                                        >
+                                                            View in Dashboard
+                                                        </Link>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </Popup>
                                 </Marker>
-                            )
+                            );
                         })}
-
-                        <MapClickHandler />
                     </MapContainer>
-
-                    {showForm && (
-                        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-[1000]">
-                            <div className="bg-white p-6 rounded-lg shadow-2xl w-96">
-                                <h2 className="text-2xl font-bold text-blue-800 mb-4">Report an Issue</h2>
-                                <form onSubmit={handleSubmit}>
-                                    <div className="mb-4">
-                                        <label className="block text-gray-700 font-bold mb-2">Location</label>
-                                        <p className="text-sm text-gray-600 bg-gray-100 p-2 rounded">{newReport.address}</p>
-                                    </div>
-                                    <div className="mb-4">
-                                        <label className="block text-gray-700 font-bold mb-2">Issue Type</label>
-                                        <select value={newReport.type} onChange={(e) => setNewReport({...newReport, type: e.target.value})} className="w-full p-2 border rounded">
-                                            <option value="road">Road/Drain Issue</option>
-                                            <option value="accident">Fatal Accident / Fire</option>
-                                            <option value="disaster">Natural Disaster</option>
-                                        </select>
-                                    </div>
-                                    <div className="mb-4">
-                                        <label className="block text-gray-700 font-bold mb-2">Upload Photo (Optional)</label>
-                                        <input 
-                                            type="file" 
-                                            accept="image/*"
-                                            onChange={(e) => setNewReport({...newReport, imageFile: e.target.files[0]})}
-                                            className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                        />
-                                    </div>
-                                    <div className="mb-6">
-                                        <label className="block text-gray-700 font-bold mb-2">Description</label>
-                                        <textarea required value={newReport.description} onChange={(e) => setNewReport({...newReport, description: e.target.value})} className="w-full p-2 border rounded" rows="3" placeholder="Describe the issue..."></textarea>
-                                    </div>
-                                    <div className="flex justify-end gap-3">
-                                        <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
-                                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold">Submit Report</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )}
                 </main>
             </div>
         </div>

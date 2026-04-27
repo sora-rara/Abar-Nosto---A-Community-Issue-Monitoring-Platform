@@ -15,6 +15,7 @@ import AdvancedSearch from './components/AdvancedSearch';
 import SharedIssue from './pages/SharedIssue';
 import UserProfile from './pages/UserProfile';
 import AdminReputation from './pages/AdminReputation';
+import MapPage from './pages/MapPage';
 
 // ===== ADDED from second file =====
 import AdminWardStats from './components/AdminWardStats';
@@ -99,6 +100,11 @@ function App() {
                         <Route path="/admin" element={
                             <ProtectedRoute requireAdmin={true}>
                                 <AdminDashboard />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/map" element={
+                            <ProtectedRoute>
+                                <MapPage />
                             </ProtectedRoute>
                         } />
 

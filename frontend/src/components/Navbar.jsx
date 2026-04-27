@@ -78,7 +78,7 @@ const Navbar = () => {
                     {/* Logo, Brand and Tagline - admin link updated */}
                     <div className="flex items-center">
                         <Link
-                            to={isLoggedIn ? (isAdmin ? "/admin/issues" : "/dashboard") : "/login"}
+                            to={isLoggedIn ? (isAdmin ? "/admin/issues" : "/home") : "/login"}
                             className="flex items-center space-x-2"
                         >
                             <div className="flex flex-col items-start">

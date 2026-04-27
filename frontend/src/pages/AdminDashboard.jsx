@@ -181,26 +181,26 @@ const AdminDashboard = () => {
         setShowArchived(false);
     };
 
-    const handleGenerateReport = () => {
-        const csvContent = [
-            ['Title', 'Category', 'Status', 'Reported By', 'Date', 'Description'].join(','),
-            ...issues.map(issue => [
-                `"${issue.title}"`,
-                issue.category,
-                issue.status,
-                `"${issue.reporterName || 'Unknown'}"`,
-                new Date(issue.createdAt).toLocaleDateString(),
-                `"${issue.description.replace(/"/g, '""')}"`
-            ].join(','))
-        ].join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `issues-report-${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        window.URL.revokeObjectURL(url);
+    const handleGenerateReport = async () => {
+        try {
+            const token = authService.getToken();
+            // Fetch the CSV file from our new backend route
+            const response = await axios.get('http://localhost:5000/api/admin/export', {
+                headers: { Authorization: `Bearer ${token}` },
+                responseType: 'blob' // Tells Axios we are downloading a file
+            });
+            
+            // Create a temporary link to download the file
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `database-export-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error exporting data:', error);
+            alert('Failed to export data from server.');
+        }
     };
 
     const getStatusBadge = (status) => {

@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import IssueCard from './IssueCard';
 import LiveActivityFeed from './LiveActivityFeed';
+import dhakaData from './dhaka-borders.json';
 
 const UpDashboard = () => {
     const navigate = useNavigate();
+    const location = useLocation(); // <-- Added to read the URL
     const [userName, setUserName] = useState('');
     const [issues, setIssues] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [highlightId, setHighlightId] = useState(null); // <-- Added to track the highlighted issue
+
     const [stats, setStats] = useState({
         total: 0,
         reported: 0,
@@ -19,7 +23,9 @@ const UpDashboard = () => {
     const [filters, setFilters] = useState({
         category: 'all',
         status: 'all',
-        sort: 'recent'
+        sort: 'recent',
+        ward: 'all', 
+        area: 'all'
     });
 
     // Redirect if not logged in
@@ -39,16 +45,41 @@ const UpDashboard = () => {
         fetchIssues();
     }, [filters]);
 
+    // --- NEW: THE MAP-TO-DASHBOARD HIGHLIGHT LOGIC ---
+    useEffect(() => {
+        // Look at the URL for "?highlight=12345"
+        const queryParams = new URLSearchParams(location.search);
+        const highlightedIssueId = queryParams.get('highlight');
+
+        // If we found an ID in the URL, and the issues have finished loading...
+        if (highlightedIssueId && issues.length > 0) {
+            setHighlightId(highlightedIssueId);
+
+            // Wait a tiny fraction of a second for the browser to draw the list
+            setTimeout(() => {
+                const targetElement = document.getElementById(`issue-${highlightedIssueId}`);
+                if (targetElement) {
+                    // Scroll smoothly to the issue and put it in the center of the screen
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // Optional: remove the highlight effect after 5 seconds
+                    setTimeout(() => setHighlightId(null), 5000);
+                }
+            }, 300);
+        }
+    }, [location.search, issues]);
+    // --------------------------------------------------
+
     const fetchIssues = async () => {
         try {
+            setLoading(true);
             const token = localStorage.getItem('token');
             let url = 'http://localhost:5000/api/issues';
 
+            // 1. Only send Category and Status to the backend database
             const params = new URLSearchParams();
             if (filters.category !== 'all') params.append('category', filters.category);
             if (filters.status !== 'all') params.append('status', filters.status);
-            if (filters.sort === 'popular') params.append('sort', '-upvoteCount');
-            else if (filters.sort === 'recent') params.append('sort', '-createdAt');
 
             if (params.toString()) {
                 url += `?${params.toString()}`;
@@ -58,8 +89,45 @@ const UpDashboard = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            setIssues(response.data);
-            // ✅ NO STATS CALCULATION HERE
+            let processedIssues = response.data;
+
+            // ====================================================
+            // 2. FRONTEND WARD & AREA FILTER (The "Mirpur 14" Fix)
+            // ====================================================
+            if (filters.area !== 'all') {
+                processedIssues = processedIssues.filter(issue => {
+                    const address = issue.location?.address?.toLowerCase() || '';
+                    return address.includes(filters.area.toLowerCase());
+                });
+            } else if (filters.ward !== 'all') {
+                // GPS addresses don't say "Ward 4". We must search for all areas inside Ward 4!
+                const areasInThisWard = dhakaData
+                    .filter(item => item.ward === filters.ward)
+                    .map(item => item.area_name.en.toLowerCase());
+
+                processedIssues = processedIssues.filter(issue => {
+                    const address = issue.location?.address?.toLowerCase() || '';
+                    // Check if the address string contains ANY of the areas mapped to this Ward
+                    return areasInThisWard.some(area => address.includes(area));
+                });
+            }
+
+            // ====================================================
+            // 3. FRONTEND SORT (The "Most Popular" Fix)
+            // ====================================================
+            if (filters.sort === 'popular') {
+                processedIssues.sort((a, b) => {
+                    // Check for either a direct count, or the length of the upvotes array
+                    const aVotes = a.upvoteCount || (a.upvotes ? a.upvotes.length : 0);
+                    const bVotes = b.upvoteCount || (b.upvotes ? b.upvotes.length : 0);
+                    return bVotes - aVotes; // Sort highest to lowest
+                });
+            } else {
+                // Default to Most Recent
+                processedIssues.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            }
+
+            setIssues(processedIssues);
         } catch (error) {
             console.error('Error fetching issues:', error);
         } finally {
@@ -92,6 +160,18 @@ const UpDashboard = () => {
         localStorage.removeItem('userName');
         navigate('/login');
     };
+
+    // --- CASCADING DROPDOWN LOGIC ---
+    // 1. Get a list of unique, sorted ward numbers
+    const uniqueWards = [...new Set(dhakaData.map(item => item.ward))]
+        .sort((a, b) => parseInt(a) - parseInt(b));
+
+    // 2. Get the specific areas for the currently selected ward
+    const availableAreas = filters.ward === 'all' 
+        ? [] 
+        : dhakaData
+            .filter(item => item.ward === filters.ward)
+            .map(item => item.area_name.en);
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -138,6 +218,34 @@ const UpDashboard = () => {
                             <div className="flex flex-wrap items-center justify-between gap-4">
                                 <h3 className="font-semibold text-gray-700">Filter Issues</h3>
                                 <div className="flex flex-wrap gap-3">
+                                    {/* WARD DROPDOWN */}
+                                    <select
+                                        value={filters.ward}
+                                        onChange={(e) => setFilters({ ...filters, ward: e.target.value, area: 'all' })}
+                                        className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+                                    >
+                                        <option value="all">All Wards</option>
+                                        {uniqueWards.map(wardNum => (
+                                            <option key={`ward-${wardNum}`} value={wardNum}>
+                                                Ward {wardNum}
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    {/* AREA DROPDOWN (Cascading) */}
+                                    <select
+                                        value={filters.area}
+                                        onChange={(e) => setFilters({ ...filters, area: e.target.value })}
+                                        disabled={filters.ward === 'all'}
+                                        className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm ${filters.ward === 'all' ? 'bg-gray-100 cursor-not-allowed opacity-60' : 'bg-white'}`}
+                                    >
+                                        <option value="all">All Areas</option>
+                                        {availableAreas.map((areaName, idx) => (
+                                            <option key={`area-${idx}`} value={areaName}>
+                                                {areaName}
+                                            </option>
+                                        ))}
+                                    </select>
                                     <select
                                         value={filters.category}
                                         onChange={(e) => setFilters({ ...filters, category: e.target.value })}
@@ -192,18 +300,28 @@ const UpDashboard = () => {
                                 <p className="text-gray-500 mb-6">Check back later for community issues in your area.</p>
                             </div>
                         ) : (
-                            <div>
+                            <div className="flex flex-col gap-4">
                                 {issues.map(issue => (
-                                    <IssueCard
+                                    /* NEW: Wrapper div adds the ID and the orange glowing border if highlighted */
+                                    <div 
                                         key={issue._id}
-                                        issue={{
-                                            ...issue,
-                                            hasUserUpvoted: issue.upvotes?.some(
-                                                u => u.user === localStorage.getItem('userId')
-                                            )
-                                        }}
-                                        onUpdate={fetchIssues}
-                                    />
+                                        id={`issue-${issue._id}`}
+                                        className={`transition-all duration-1000 ${
+                                            highlightId === issue._id 
+                                            ? 'ring-4 ring-orange-500 shadow-2xl scale-[1.01] rounded-xl z-10 relative bg-orange-50/20' 
+                                            : ''
+                                        }`}
+                                    >
+                                        <IssueCard
+                                            issue={{
+                                                ...issue,
+                                                hasUserUpvoted: issue.upvotes?.some(
+                                                    u => u.user === localStorage.getItem('userId')
+                                                )
+                                            }}
+                                            onUpdate={fetchIssues}
+                                        />
+                                    </div>
                                 ))}
                             </div>
                         )}
