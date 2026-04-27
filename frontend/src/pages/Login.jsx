@@ -35,6 +35,15 @@ function Login() {
 
                 setSuccessMessage(`Welcome back, ${result.user.name}!`);
 
+                // ✅ Request notification permission after successful login
+                if ('Notification' in window && Notification.permission !== 'granted') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            console.log('Notification permission granted');
+                        }
+                    });
+                }
+
                 setTimeout(() => {
                     if (result.user.isAdmin || result.user.role === 'admin') {
                         navigate('/admin');

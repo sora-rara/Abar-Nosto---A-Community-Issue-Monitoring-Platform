@@ -8,6 +8,25 @@ import UpDashboard from './components/upDashboard';
 import ComplaintDetails from './pages/ComplaintDetails';
 import AdminDashboard from './pages/AdminDashboard';
 import MapPage from './pages/MapPage';
+import PreferencesPage from './pages/PreferencesPage';
+import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
+import Toast from './components/Toast';
+import axios from 'axios';
+import AdvancedSearch from './components/AdvancedSearch';
+import SharedIssue from './pages/SharedIssue';
+import UserProfile from './pages/UserProfile';
+import AdminReputation from './pages/AdminReputation';
+
+axios.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -25,48 +44,86 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
     return children;
 };
 
+// ✅ ToastListener component – must be inside NotificationProvider
+const ToastListener = () => {
+    const { toastNotification, clearToast } = useNotifications();
+    if (!toastNotification) return null;
+    return <Toast notification={toastNotification} onClose={clearToast} />;
+};
+
 function App() {
     return (
-        <Router>
-            <Layout> {/* Wrap everything with Layout */}
-                <Routes>
-                    <Route path="/" element={<Navigate to="/login" />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route path="/home" element={
-                        <ProtectedRoute>
-                            <Home />
-                        </ProtectedRoute>
-                    } />
-                    <Route path="/dashboard" element={
-                        <ProtectedRoute>
-                            <UpDashboard />
-                        </ProtectedRoute>
-                    } />
-                    <Route path="/complaint/:id" element={
-                        <ProtectedRoute>
-                            <ComplaintDetails />
-                        </ProtectedRoute>
-                    } />
-                    <Route path="/create-report" element={
-                        <ProtectedRoute>
-                            <CreateReport />
-                        </ProtectedRoute>
-                    } />
+        <NotificationProvider>
+            <Router>
+                <Layout>
+                    <ToastListener />
+                    <Routes>
+                        <Route path="/" element={<Navigate to="/login" />} />
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/register" element={<Register />} />
+                        <Route path="/home" element={
+                            <ProtectedRoute>
+                                <Home />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/dashboard" element={
+                            <ProtectedRoute>
+                                <UpDashboard />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/complaint/:id" element={
+                            <ProtectedRoute>
+                                <ComplaintDetails />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/create-report" element={
+                            <ProtectedRoute>
+                                <CreateReport />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/preferences" element={
+                            <ProtectedRoute>
+                                <PreferencesPage />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/map" element={
+                            <ProtectedRoute>
+                                <MapPage />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/admin" element={
+                            <ProtectedRoute requireAdmin={true}>
+                                <AdminDashboard />
+                            </ProtectedRoute>
+                        } />
 
-                    <Route path="/map" element={
-                        <ProtectedRoute>
-                            <MapPage />
-                        </ProtectedRoute>
-                    } />
-                    <Route path="/admin" element={
-                        <ProtectedRoute requireAdmin={true}>
-                            <AdminDashboard />
-                        </ProtectedRoute>
-                    } />
-                </Routes>
-            </Layout>
-        </Router>
+                        <Route path="/search" element={
+                            <ProtectedRoute>
+                                <AdvancedSearch />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/shared-issue/:id" element={<SharedIssue />} />
+
+                        {/* ========== PINPOINT 3: ADD USER PROFILE ROUTE FROM 1st CODE ========== */}
+                        {/* User Profile Route */}
+                        <Route path="/profile" element={
+                            <ProtectedRoute>
+                                <UserProfile />
+                            </ProtectedRoute>
+                        } />
+                        {/* ========== END OF PINPOINT 3 ========== */}
+
+                        {/* ========== PINPOINT 4: ADD ADMIN REPUTATION MANAGEMENT ROUTE FROM 1st CODE ========== */}
+                        {/* Admin Reputation Management Route */}
+                        <Route path="/admin/reputation" element={
+                            <ProtectedRoute requireAdmin={true}>
+                                <AdminReputation />
+                            </ProtectedRoute>
+                        } />
+                    </Routes>
+                </Layout>
+            </Router>
+        </NotificationProvider>
     );
 }
 

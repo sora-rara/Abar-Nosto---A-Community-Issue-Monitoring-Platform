@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const imagekit = require('../config/imagekit');
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/upload');
 const { verifyCaptcha } = require('../middleware/captchaMiddleware');
@@ -17,7 +18,7 @@ router.use(protect);
 // @route   POST /api/reports
 // @desc    Create a new report with photos and CAPTCHA verification
 // @access  Private
-router.post('/', 
+router.post('/',
     upload.array('photos', 5),  // Handle photo uploads first (max 5)
     verifyCaptcha,              // Then verify CAPTCHA
     createReport                // Finally create the report

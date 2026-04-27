@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import VoteButton from './VoteButton';
 import CommentSection from './CommentSection';
+import FollowButton from './FollowButton';
+import ShareModal from './ShareModal';
 
 const IssueCard = ({ issue, onUpdate }) => {
     const [expanded, setExpanded] = useState(false);
@@ -9,15 +11,17 @@ const IssueCard = ({ issue, onUpdate }) => {
     const [userVote, setUserVote] = useState(null);
     const [upvoteCount, setUpvoteCount] = useState(0);
     const [downvoteCount, setDownvoteCount] = useState(0);
+    const [showShareModal, setShowShareModal] = useState(false);
+
 
     // Calculate vote data when issue changes
     useEffect(() => {
         const currentUserId = localStorage.getItem('userId');
-        
+
         // Set vote counts
         setUpvoteCount(issue.upvoteCount || issue.upvotes?.length || 0);
         setDownvoteCount(issue.downvoteCount || issue.downvotes?.length || 0);
-        
+
         // Set user vote status
         if (!currentUserId || !issue) {
             setUserVote(null);
@@ -34,7 +38,7 @@ const IssueCard = ({ issue, onUpdate }) => {
         } else {
             setUserVote(null);
         }
-        
+
         console.log('IssueCard vote data:', {
             upvoteCount: issue.upvoteCount,
             upvotesLength: issue.upvotes?.length,
@@ -76,7 +80,7 @@ const IssueCard = ({ issue, onUpdate }) => {
 
     const handleVoteUpdate = (data) => {
         console.log('Vote update received:', data);
-        
+
         // Update local state based on vote result
         if (data.hasUpvoted) {
             setUserVote('up');
@@ -85,10 +89,10 @@ const IssueCard = ({ issue, onUpdate }) => {
         } else {
             setUserVote(null);
         }
-        
+
         setUpvoteCount(data.upvoteCount);
         setDownvoteCount(data.downvoteCount);
-        
+
         // Call parent update if needed
         if (onUpdate) {
             onUpdate();
@@ -99,7 +103,7 @@ const IssueCard = ({ issue, onUpdate }) => {
         <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
             {/* Header with Status Bar */}
             <div className={`h-2 ${status.color}`}></div>
-            
+
             <div className="p-6">
                 {/* Title and Category */}
                 <div className="flex items-start justify-between mb-4">
@@ -117,7 +121,7 @@ const IssueCard = ({ issue, onUpdate }) => {
                             </span>
                         </div>
                     </div>
-                    
+
                     {/* Status Badge */}
                     <div className={`px-3 py-1 rounded-full text-sm font-medium text-white ${status.color}`}>
                         <span className="mr-1">{status.icon}</span>
@@ -186,6 +190,18 @@ const IssueCard = ({ issue, onUpdate }) => {
                             <span className="font-medium">{issue.commentCount || issue.comments?.length || 0}</span>
                             <span className="text-sm hidden sm:inline">Comments</span>
                         </button>
+
+                        {/* 👈 ADD SHARE BUTTON RIGHT HERE */}
+                        <button
+                            onClick={() => setShowShareModal(true)}
+                            className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-blue-600 transition rounded-lg hover:bg-blue-50"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                            </svg>
+                            <span className="text-sm">Share</span>
+                        </button>
+
                     </div>
 
                     {/* View Details Link */}
@@ -218,6 +234,13 @@ const IssueCard = ({ issue, onUpdate }) => {
                         />
                     </div>
                 )}
+                {/* 👈 ADD SHARE MODAL RIGHT HERE */}
+                <ShareModal
+                    isOpen={showShareModal}
+                    onClose={() => setShowShareModal(false)}
+                    issueId={issue._id}
+                    issueTitle={issue.title}
+                />
             </div>
         </div>
     );

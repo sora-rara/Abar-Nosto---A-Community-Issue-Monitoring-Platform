@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import Captcha from '../components/Captcha';
+import ShareModal from '../components/ShareModal';
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -50,7 +51,6 @@ const categories = [
 const CreateReport = () => {
     const navigate = useNavigate();
     const captchaRef = useRef(null);
-    
     const [submitting, setSubmitting] = useState(false);
     const [location, setLocation] = useState(null);
     const [locationError, setLocationError] = useState('');
@@ -58,6 +58,9 @@ const CreateReport = () => {
     const [locationUpdating, setLocationUpdating] = useState(false);
     const [nearbyIssues, setNearbyIssues] = useState([]);
     const [loadingNearby, setLoadingNearby] = useState(false);
+    const [submittedReport, setSubmittedReport] = useState(null);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     // Map is now always visible, no need for showMap state
     const [isUpdatingFromMap, setIsUpdatingFromMap] = useState(false);
@@ -387,6 +390,9 @@ const CreateReport = () => {
             // Add captcha token to form data
             formDataToSend.append('captchaToken', captchaToken);
 
+            // Add captcha token to form data
+            formDataToSend.append('captchaToken', captchaToken);
+
             photos.forEach(photo => {
                 formDataToSend.append('photos', photo);
             });
@@ -403,17 +409,17 @@ const CreateReport = () => {
             );
 
             if (response.data.success) {
-                alert('✅ Report submitted successfully!');
+                setSubmittedReport(response.data.report);
                 // Reset captcha after successful submission
                 resetCaptcha();
-                navigate('/dashboard');
+                // Scroll to top to show share section
+                window.scrollTo(0, 0);
             } else {
                 throw new Error(response.data.error || 'Failed to submit report');
             }
 
         } catch (error) {
             console.error('Submission error:', error);
-            
             // Handle captcha specific errors
             if (error.response?.data?.error?.includes('CAPTCHA')) {
                 setCaptchaError(error.response.data.error);
@@ -422,7 +428,6 @@ const CreateReport = () => {
             } else {
                 alert(error.response?.data?.message || error.message || 'Failed to submit report');
             }
-            
             // Reset captcha on any error to force new verification
             resetCaptcha();
         } finally {
@@ -473,6 +478,204 @@ const CreateReport = () => {
         );
     }
 
+    // If report was submitted successfully, show share screen
+    if (submittedReport) {
+        const shareUrl = `${window.location.origin}/shared-issue/${submittedReport._id}`;
+
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 py-12 px-4">
+                <div className="max-w-2xl mx-auto">
+                    {/* Success Card */}
+                    <div className="bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-500">
+                        {/* Animated Success Header */}
+                        <div className="relative bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-8 text-center">
+                            <div className="absolute inset-0 bg-white/10"></div>
+                            <div className="relative">
+                                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                                    <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </div>
+                                <h2 className="text-2xl font-bold text-white mb-2">Report Submitted Successfully!</h2>
+                                <p className="text-green-100">
+                                    Your issue has been reported and is now visible to the community.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-6 md:p-8">
+                            {/* Report Summary Card */}
+                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 mb-6 border border-gray-200">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-xs text-gray-500 uppercase tracking-wide">Report ID</p>
+                                        <p className="font-mono text-sm text-gray-700">{submittedReport._id.slice(-8)}</p>
+                                        <p className="text-xs text-gray-500 mt-1">{submittedReport.category}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-xs text-gray-500">Status</p>
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                                            Reported
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                                <button
+                                    onClick={() => navigate('/dashboard')}
+                                    className="group flex items-center justify-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
+                                >
+                                    <svg className="w-5 h-5 group-hover:-translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                    </svg>
+                                    Go to Dashboard
+                                </button>
+                                <button
+                                    onClick={() => setShowShareModal(true)}
+                                    className="group flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
+                                >
+                                    <svg className="w-5 h-5 group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                    </svg>
+                                    Share This Report
+                                </button>
+                            </div>
+
+                            {/* Divider */}
+                            <div className="relative my-6">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-gray-200"></div>
+                                </div>
+                                <div className="relative flex justify-center text-sm">
+                                    <span className="px-4 py-1 bg-white text-gray-500 rounded-full border border-gray-200">Or share instantly</span>
+                                </div>
+                            </div>
+
+                            {/* Social Share Buttons - Improved Design */}
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <button
+                                        onClick={() => {
+                                            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
+                                        }}
+                                        className="group relative overflow-hidden flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1877F2] text-white rounded-xl hover:bg-[#0C63D4] transition-all duration-200 font-medium"
+                                    >
+                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                                        <svg className="w-5 h-5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+                                        </svg>
+                                        <span className="relative z-10 text-sm">Facebook</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            const text = encodeURIComponent(`I just reported an issue: ${submittedReport.title}`);
+                                            window.open(`https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(shareUrl)}`, '_blank');
+                                        }}
+                                        className="group relative overflow-hidden flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1DA1F2] text-white rounded-xl hover:bg-[#1A91DA] transition-all duration-200 font-medium"
+                                    >
+                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                                        <svg className="w-5 h-5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+                                        </svg>
+                                        <span className="relative z-10 text-sm">Twitter</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            const text = encodeURIComponent(`Check out this issue I reported: ${submittedReport.title}`);
+                                            window.open(`https://wa.me/?text=${text}%20${encodeURIComponent(shareUrl)}`, '_blank');
+                                        }}
+                                        className="group relative overflow-hidden flex items-center justify-center gap-2 px-4 py-2.5 bg-[#25D366] text-white rounded-xl hover:bg-[#20BD5A] transition-all duration-200 font-medium"
+                                    >
+                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                                        <svg className="w-5 h-5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M12.032 2.003c-5.518 0-10 4.482-10 10 0 1.834.495 3.546 1.357 5.012l-1.357 4.985 5.148-1.33c1.43.785 3.05 1.233 4.852 1.233 5.518 0 10-4.482 10-10s-4.482-10-10-10zm0 18.5c-1.543 0-2.993-.42-4.242-1.148l-.308-.184-3.11.802.85-3.06-.197-.32c-.79-1.267-1.243-2.74-1.243-4.29 0-4.554 3.706-8.26 8.26-8.26s8.26 3.706 8.26 8.26-3.706 8.26-8.26 8.26z" />
+                                            <path d="M16.6 13.82c-.253-.126-1.5-.74-1.734-.826-.232-.085-.402-.127-.572.127-.17.253-.66.826-.81.995-.148.17-.297.192-.55.064-.253-.127-1.07-.395-2.037-1.257-.753-.672-1.26-1.5-1.41-1.754-.148-.253-.017-.39.112-.516.116-.116.254-.296.38-.445.127-.148.17-.254.254-.423.085-.17.042-.317-.022-.444-.063-.127-.573-1.38-.785-1.89-.208-.5-.416-.414-.572-.422-.148-.008-.318-.008-.488-.008s-.446.064-.678.317c-.233.254-.89.87-.89 2.122 0 1.252.91 2.462 1.038 2.632.127.17 1.79 2.736 4.34 3.836 2.55 1.1 2.55.733 3.01.687.46-.045 1.485-.607 1.694-1.193.21-.586.21-1.088.148-1.193-.064-.106-.233-.17-.487-.297z" />
+                                        </svg>
+                                        <span className="relative z-10 text-sm">WhatsApp</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, '_blank');
+                                        }}
+                                        className="group relative overflow-hidden flex items-center justify-center gap-2 px-4 py-2.5 bg-[#0A66C2] text-white rounded-xl hover:bg-[#094DAE] transition-all duration-200 font-medium"
+                                    >
+                                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                                        <svg className="w-5 h-5 relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451c.979 0 1.771-.773 1.771-1.729V1.729C24 .774 23.222 0 22.225 0z" />
+                                        </svg>
+                                        <span className="relative z-10 text-sm">LinkedIn</span>
+                                    </button>
+                                </div>
+
+                                {/* Copy Link Section - Improved */}
+                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                    <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Copy Share Link</label>
+                                    <div className="flex gap-2">
+                                        <div className="flex-1 relative">
+                                            <input
+                                                type="text"
+                                                value={shareUrl}
+                                                readOnly
+                                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600 font-mono focus:outline-none focus:ring-2 focus:ring-green-500"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(shareUrl);
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 2000);
+                                            }}
+                                            className="px-5 py-2.5 bg-gradient-to-r from-gray-700 to-gray-800 text-white rounded-xl hover:from-gray-800 hover:to-gray-900 transition-all duration-200 font-medium flex items-center gap-2"
+                                        >
+                                            {copied ? (
+                                                <>
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Copied!
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                    </svg>
+                                                    Copy
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2 text-center">
+                                        Anyone with this link can view your report
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Share Modal for more options */}
+                    <ShareModal
+                        isOpen={showShareModal}
+                        onClose={() => setShowShareModal(false)}
+                        issueId={submittedReport._id}
+                        issueTitle={submittedReport.title}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    // Otherwise show the normal form
     return (
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
             {/* Header */}
@@ -671,16 +874,15 @@ const CreateReport = () => {
                                         ref={captchaRef}
                                         onVerify={handleCaptchaVerify}
                                     />
-                                    
                                     {captchaError && (
                                         <p className="text-sm text-red-600 text-center">
                                             {captchaError}
                                         </p>
                                     )}
-                                    
+
                                     {captchaToken ? (
                                         <p className="text-sm text-green-600 flex items-center">
-                                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 24 24">
                                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                             </svg>
                                             CAPTCHA verified

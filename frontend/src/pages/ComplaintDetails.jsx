@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import VoteButton from '../components/VoteButton';
 import CommentSection from '../components/CommentSection';
+import FollowButton from '../components/FollowButton';
 
 const ComplaintDetails = () => {
     const { id } = useParams();
@@ -27,11 +28,9 @@ const ComplaintDetails = () => {
 
             const data = response.data;
 
-            // Calculate vote counts
             const upvotes = data.upvotes?.length || 0;
             const downvotes = data.downvotes?.length || 0;
 
-            // Calculate user vote status
             const currentUserId = localStorage.getItem('userId');
             let userVoteStatus = null;
 
@@ -53,13 +52,6 @@ const ComplaintDetails = () => {
                 downvoteCount: downvotes,
                 userVote: userVoteStatus
             });
-
-            console.log('ComplaintDetails vote data:', {
-                upvotes,
-                downvotes,
-                userVote: userVoteStatus
-            });
-
         } catch (error) {
             console.error('Error fetching complaint:', error);
         } finally {
@@ -88,8 +80,6 @@ const ComplaintDetails = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
-
-            {/* Main Content */}
             <main className="container mx-auto px-4 py-8">
                 <h1 className="text-3xl font-bold text-gray-800 mb-8">COMPLAINT DETAILS</h1>
 
@@ -103,7 +93,6 @@ const ComplaintDetails = () => {
                                     Complaint ID No. : {complaint.complaintNumber || id}
                                 </h2>
                             </div>
-
                             <div className="p-6">
                                 {/* Location Section */}
                                 <div className="mb-6">
@@ -123,12 +112,8 @@ const ComplaintDetails = () => {
                                     <div className="mb-6">
                                         <h3 className="text-lg font-semibold text-gray-800 mb-3">Contact Info</h3>
                                         <div className="bg-gray-50 p-4 rounded-lg">
-                                            {complaint.contactInfo.phone && (
-                                                <p className="text-gray-700">📞 {complaint.contactInfo.phone}</p>
-                                            )}
-                                            {complaint.contactInfo.email && (
-                                                <p className="text-gray-700 mt-1">✉️ {complaint.contactInfo.email}</p>
-                                            )}
+                                            {complaint.contactInfo.phone && <p className="text-gray-700">📞 {complaint.contactInfo.phone}</p>}
+                                            {complaint.contactInfo.email && <p className="text-gray-700 mt-1">✉️ {complaint.contactInfo.email}</p>}
                                         </div>
                                     </div>
                                 )}
@@ -170,7 +155,6 @@ const ComplaintDetails = () => {
                             <div className="bg-blue-600 px-6 py-4">
                                 <h2 className="text-xl font-semibold text-white">Discussion</h2>
                             </div>
-
                             <div className="p-6">
                                 <CommentSection
                                     issueId={complaint._id}
@@ -206,7 +190,7 @@ const ComplaintDetails = () => {
                             </div>
                         </div>
 
-                        {/* Status Card */}
+                        {/* Status Card with Follow Button integrated */}
                         <div className="bg-white rounded-xl shadow-md overflow-hidden">
                             <div className="bg-blue-600 px-6 py-4">
                                 <h2 className="text-xl font-semibold text-white">Status</h2>
@@ -215,16 +199,20 @@ const ComplaintDetails = () => {
                                 <div className="flex items-center justify-between mb-4">
                                     <span className="text-gray-700">Current Status:</span>
                                     <span className={`px-3 py-1 rounded-full text-sm font-medium text-white ${complaint.status === 'resolved' ? 'bg-green-500' :
-                                            complaint.status === 'in_progress' ? 'bg-yellow-500' :
-                                                'bg-red-500'
+                                        complaint.status === 'in_progress' ? 'bg-yellow-500' : 'bg-red-500'
                                         }`}>
                                         {complaint.status === 'in_progress' ? 'In Progress' :
                                             complaint.status?.charAt(0).toUpperCase() + complaint.status?.slice(1)}
                                     </span>
                                 </div>
 
+                                {/* ✅ Follow Button - just the button, no extra card */}
+                                <div className="mb-4">
+                                    <FollowButton issueId={complaint._id} />
+                                </div>
+
                                 {/* Vote Section */}
-                                <div className="mt-6 pt-4 border-t">
+                                <div className="pt-4 border-t">
                                     <h3 className="text-sm font-medium text-gray-600 mb-3">Community Vote</h3>
                                     <VoteButton
                                         issueId={complaint._id}
