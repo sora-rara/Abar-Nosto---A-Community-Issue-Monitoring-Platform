@@ -4,6 +4,11 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const AdminIssue = require('../models/AdminIssue');
 const { notifyFollowers, notifyAuthor, notifyUser } = require('../services/notificationService');
+const { requestReopen: requestReopenService } = require('../services/issueStatusService');
+// ---- Added from second file ----
+const { sendReputationNotification } = require('../utils/reputationNotification');
+const Notification = require('../models/Notification');
+// -------------------------------
 
 // ===========================================
 // HELPER – Sync to Admin Collection
@@ -12,7 +17,6 @@ const syncToAdminCollection = async (reportId) => {
     try {
         const report = await Report.findById(reportId).populate('user', 'name email');
         if (!report) return;
-
         await AdminIssue.findOneAndUpdate(
             { originalReportId: reportId },
             {
@@ -49,7 +53,29 @@ const syncToAdminCollection = async (reportId) => {
 // ===========================================
 const getIssues = async (req, res) => {
     try {
-        const reports = await Report.find().sort('-createdAt');
+        const { category, status, sort } = req.query;
+
+        const filter = {};
+        if (category && category !== 'all') {
+            filter.category = category;
+        }
+
+        // If a specific status is requested (including 'archived'), use it
+        if (status && status !== 'all') {
+            filter.status = status;
+        } else {
+            // Default: exclude archived issues
+            filter.status = { $ne: 'archived' };
+        }
+
+        let sortOption = '-createdAt';
+        if (sort === 'popular') {
+            sortOption = '-upvoteCount';
+        } else if (sort === 'recent') {
+            sortOption = '-createdAt';
+        }
+
+        const reports = await Report.find(filter).sort(sortOption);
         res.json(reports);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -97,6 +123,24 @@ const toggleUpvote = async (req, res) => {
                 content: `${req.user.name} removed their upvote`,
                 importance: 'low'
             });
+            // Also create in AdminActivity
+            try {
+                const AdminActivity = require('../models/AdminActivity');
+                await AdminActivity.create({
+                    type: 'upvote_removed',
+                    issue: reportId,
+                    issueTitle: report.title,
+                    issueCategory: report.category,
+                    user: userId,
+                    userName: req.user.name,
+                    content: `${req.user.name} removed their upvote`,
+                    priority: 'low',
+                    metadata: {},
+                    createdAt: new Date()
+                });
+            } catch (err) {
+                console.error('AdminActivity creation error:', err.message);
+            }
         } else {
             // Add upvote
             report.upvotes.push({ user: userId, createdAt: new Date() });
@@ -112,6 +156,24 @@ const toggleUpvote = async (req, res) => {
                 content: `${req.user.name} upvoted this issue`,
                 importance: 'normal'
             });
+
+            try {
+                const AdminActivity = require('../models/AdminActivity');
+                await AdminActivity.create({
+                    type: 'upvote',
+                    issue: reportId,
+                    issueTitle: report.title,
+                    issueCategory: report.category,
+                    user: userId,
+                    userName: req.user.name,
+                    content: `${req.user.name} upvoted this issue`,
+                    priority: 'low',
+                    metadata: {},
+                    createdAt: new Date()
+                });
+            } catch (err) {
+                console.error('AdminActivity creation error:', err.message);
+            }
 
             // 🔔 UPVOTE NOTIFICATION: Notify the report owner (if not self-upvote)
             const ownerId = report.user.toString();
@@ -149,6 +211,19 @@ const toggleUpvote = async (req, res) => {
                 } catch (err) {
                     console.error('Reputation award failed:', err.message);
                 }
+
+                // ---- Added: send reputation notification (from second file) ----
+                try {
+                    await sendReputationNotification(
+                        ownerId,
+                        'Reputation Awarded',
+                        `You gained +1 reputation from an upvote on "${report.title}"`,
+                        reportId
+                    );
+                } catch (notifError) {
+                    console.error('Reputation notification failed:', notifError.message);
+                }
+                // ----------------------------------------------------------------
             }
         }
 
@@ -177,18 +252,24 @@ const toggleDownvote = async (req, res) => {
         const reportId = req.params.id;
         const userId = req.user.id;
 
+        console.log('Downvote attempt:', { reportId, userId });
+
         const report = await Report.findById(reportId);
-        if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Report not found' });
+        }
 
         if (!report.upvotes) report.upvotes = [];
         if (!report.downvotes) report.downvotes = [];
 
-        const downvoteIndex = report.downvotes.findIndex(v => v.user.toString() === userId);
-        const upvoteIndex = report.upvotes.findIndex(v => v.user.toString() === userId);
-        const wasDownvoted = downvoteIndex !== -1;
+        const downvoteIndex = report.downvotes.findIndex(v => v.user.toString() === userId.toString());
+        const upvoteIndex = report.upvotes.findIndex(v => v.user.toString() === userId.toString());
+
+        let wasDownvoted = downvoteIndex !== -1;
 
         if (downvoteIndex !== -1) {
             report.downvotes.splice(downvoteIndex, 1);
+
             await Activity.create({
                 type: 'downvote_removed',
                 issue: reportId,
@@ -201,7 +282,6 @@ const toggleDownvote = async (req, res) => {
             });
         } else {
             report.downvotes.push({ user: userId, createdAt: new Date() });
-            if (upvoteIndex !== -1) report.upvotes.splice(upvoteIndex, 1);
 
             await Activity.create({
                 type: 'downvote',
@@ -213,6 +293,10 @@ const toggleDownvote = async (req, res) => {
                 content: `${req.user.name} downvoted this issue`,
                 importance: 'normal'
             });
+
+            if (upvoteIndex !== -1) {
+                report.upvotes.splice(upvoteIndex, 1);
+            }
         }
 
         report.upvoteCount = report.upvotes.length;
@@ -259,13 +343,18 @@ const addComment = async (req, res) => {
         const reportId = req.params.id;
         const userId = req.user.id;
 
-        if (!text || !text.trim()) {
+        if (!text || text.trim().length === 0) {
             return res.status(400).json({ success: false, message: 'Comment text is required' });
         }
 
-        const user = await User.findById(userId);
-        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        console.log('Add comment attempt:', { reportId, userId: userId.toString() });
 
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const userName = user.name;
         const db = mongoose.connection.db;
         const collection = db.collection('reports');
         const objectId = new mongoose.Types.ObjectId(reportId);
@@ -274,7 +363,7 @@ const addComment = async (req, res) => {
         const comment = {
             _id: new mongoose.Types.ObjectId(),
             user: userObjectId,
-            userName: user.name,
+            userName: userName,
             text: text.trim(),
             createdAt: new Date(),
             isEdited: false,
@@ -296,30 +385,50 @@ const addComment = async (req, res) => {
 
         const report = await collection.findOne({ _id: objectId }, { projection: { title: 1, category: 1 } });
 
-        // Activity
+        // Create activity for new comment
         await Activity.create({
             type: 'new_comment',
             issue: reportId,
             issueTitle: report?.title || 'Report',
             issueCategory: report?.category,
             user: userId,
-            userName: user.name,
+            userName: userName,
             content: text.trim().substring(0, 100),
             importance: 'normal'
         });
+
+        // -- Added from second file: AdminActivity, notifications, reputation --
+        // AdminActivity logging
+        try {
+            const AdminActivity = require('../models/AdminActivity');
+            await AdminActivity.create({
+                type: 'new_comment',
+                issue: reportId,
+                issueTitle: report?.title || 'Report',
+                issueCategory: report?.category,
+                user: userId,
+                userName: userName,
+                content: text.trim().substring(0, 100),
+                priority: 'medium',
+                metadata: { commentId: comment._id },
+                createdAt: new Date()
+            });
+        } catch (err) {
+            console.error('AdminActivity comment creation error:', err.message);
+        }
 
         // Notifications
         await notifyFollowers(reportId, userId, {
             type: 'new_comment',
             title: `New comment on "${report?.title || 'Report'}"`,
-            message: `${user.name} commented: ${text.trim().substring(0, 100)}`,
+            message: `${userName} commented: ${text.trim().substring(0, 100)}`,
             relatedIssue: reportId,
             metadata: { commentId: comment._id }
         });
         await notifyAuthor(reportId, userId, {
             type: 'new_comment',
             title: `New comment on your issue: ${report?.title || 'Report'}`,
-            message: `${user.name} commented: ${text.trim().substring(0, 100)}`,
+            message: `${userName} commented: ${text.trim().substring(0, 100)}`,
             relatedIssue: reportId,
             metadata: { commentId: comment._id }
         });
@@ -350,6 +459,20 @@ const addComment = async (req, res) => {
             console.error('Comment reputation error:', err.message);
         }
 
+        // ---- Added: send reputation notification for comment (from second file) ----
+        try {
+            await sendReputationNotification(
+                userId,
+                'Reputation Awarded',
+                `You gained +2 reputation for commenting on "${report?.title || 'Report'}"`,
+                reportId
+            );
+        } catch (notifError) {
+            console.error('Reputation notification failed:', notifError.message);
+        }
+        // -------------------------------------------------------------------------
+
+        // Sync to admin collection
         await syncToAdminCollection(reportId);
 
         res.status(201).json({
@@ -358,7 +481,8 @@ const addComment = async (req, res) => {
             comment: {
                 ...comment,
                 _id: comment._id.toString(),
-                user: comment.user.toString()
+                user: comment.user.toString(),
+                userName: userName
             }
         });
     } catch (error) {
@@ -368,7 +492,6 @@ const addComment = async (req, res) => {
 };
 
 const editComment = async (req, res) => {
-    // (unchanged)
     try {
         const { id, commentId } = req.params;
         const { text } = req.body;
@@ -425,7 +548,6 @@ const editComment = async (req, res) => {
 };
 
 const deleteComment = async (req, res) => {
-    // (unchanged)
     try {
         const { id, commentId } = req.params;
         const userId = req.user.id;
@@ -466,7 +588,6 @@ const deleteComment = async (req, res) => {
 // ACTIVITY FEED
 // ===========================================
 const getActivityFeed = async (req, res) => {
-    // (unchanged)
     try {
         const { page = 1, limit = 20, type, days = 7 } = req.query;
         const query = {};
@@ -501,7 +622,6 @@ const getActivityFeed = async (req, res) => {
 };
 
 const getIssueActivities = async (req, res) => {
-    // (unchanged)
     try {
         const activities = await Activity.find({ issue: req.params.id }).sort({ createdAt: -1 }).limit(50);
         res.json({ success: true, data: activities });
@@ -510,9 +630,101 @@ const getIssueActivities = async (req, res) => {
     }
 };
 
+const requestReopen = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const io = req.app.get('io');
+        await requestReopenService(id, req.user.id, req.user.name, io);
+        res.json({ success: true, message: 'Reopen request sent to admin' });
+    } catch (error) {
+        console.error('Request reopen error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ---- Added from second file ----
+const requestUpdate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+
+        // Fetch user and issue in parallel
+        const [user, issue] = await Promise.all([
+            User.findById(userId).select('name email'),
+            Report.findById(id)
+        ]);
+
+        if (!issue) {
+            return res.status(404).json({ success: false, message: 'Issue not found' });
+        }
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Find an admin user to assign the notification to
+        let adminUser = await User.findOne({ role: 'admin' });
+        if (!adminUser) {
+            // Fallback: use the first available user
+            adminUser = await User.findOne();
+        }
+        if (!adminUser) {
+            throw new Error('No user found to assign notification');
+        }
+
+        // Create notification for admin
+        await Notification.create({
+            user: adminUser._id,
+            type: 'update_request',
+            title: `Update requested for issue: ${issue.title}`,
+            message: `${user.name} (${user.email}) requested the latest update on issue #${id.slice(-6)}.`,
+            relatedIssue: id,
+            createdAt: new Date()
+        });
+
+        res.json({ success: true, message: 'Your request has been sent. You will be notified when an update is available.' });
+    } catch (error) {
+        console.error('Error in requestUpdate:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+// -------------------------------
+
+const getIssueStats = async (req, res) => {
+    try {
+        console.log('📊 Stats request received');
+
+        const total = await Report.countDocuments();
+        console.log(`Total: ${total}`);
+
+        const reported = await Report.countDocuments({ status: 'reported' });
+        const inProgress = await Report.countDocuments({ status: 'in_progress' });
+        const resolved = await Report.countDocuments({ status: 'resolved' });
+        const archived = await Report.countDocuments({ status: 'archived' });
+
+        console.log(`Reported: ${reported}, InProgress: ${inProgress}, Resolved: ${resolved}, Archived: ${archived}`);
+
+        return res.json({
+            success: true,
+            total,
+            reported,
+            inProgress,
+            resolved,
+            archived
+        });
+    } catch (error) {
+        console.error('❌ Stats error:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+            stack: error.stack
+        });
+    }
+};
+
 module.exports = {
     getIssues,
     getIssue,
+    getIssueStats,
     toggleUpvote,
     toggleDownvote,
     getUpvoters,
@@ -520,5 +732,7 @@ module.exports = {
     editComment,
     deleteComment,
     getActivityFeed,
-    getIssueActivities
+    getIssueActivities,
+    requestReopen,
+    requestUpdate          // <-- Added
 };

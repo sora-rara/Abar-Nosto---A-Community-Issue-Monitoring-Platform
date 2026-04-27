@@ -65,7 +65,8 @@ const IssueCard = ({ issue, onUpdate }) => {
         const statuses = {
             reported: { color: 'bg-red-500', label: 'Reported', icon: '🆕' },
             in_progress: { color: 'bg-yellow-500', label: 'In Progress', icon: '🔄' },
-            resolved: { color: 'bg-green-500', label: 'Resolved', icon: '✅' }
+            resolved: { color: 'bg-green-500', label: 'Resolved', icon: '✅' },
+            archived: { color: 'bg-gray-500', label: 'Archived', icon: '📦' }
         };
         return statuses[status] || statuses.reported;
     };
@@ -191,7 +192,7 @@ const IssueCard = ({ issue, onUpdate }) => {
                             <span className="text-sm hidden sm:inline">Comments</span>
                         </button>
 
-                        {/* 👈 ADD SHARE BUTTON RIGHT HERE */}
+                        {/* Share Button */}
                         <button
                             onClick={() => setShowShareModal(true)}
                             className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-blue-600 transition rounded-lg hover:bg-blue-50"
@@ -202,6 +203,8 @@ const IssueCard = ({ issue, onUpdate }) => {
                             <span className="text-sm">Share</span>
                         </button>
 
+                        {/* ✅ Follow Button */}
+                        <FollowButton issueId={issue._id} />
                     </div>
 
                     {/* View Details Link */}

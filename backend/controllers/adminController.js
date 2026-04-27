@@ -3,14 +3,26 @@ const Report = require('../models/Report');
 const User = require('../models/User');
 const Activity = require('../models/Activity');
 const { notifyFollowers, notifyAuthor } = require('../services/notificationService');
+const { updateIssueStatus } = require('../services/issueStatusService');
+const AdminActivity = require('../models/AdminActivity');
 
 exports.getAllIssues = async (req, res) => {
     try {
         const { status, category, page = 1, limit = 10, sort = '-createdAt' } = req.query;
 
         const filter = {};
-        if (status && status !== 'all') filter.status = status;
-        if (category && category !== 'all') filter.category = category;
+
+        // Apply status filter if provided (frontend sends 'archived' for archived tab)
+        if (status && status !== 'all') {
+            filter.status = status;
+        } else {
+            // Default: exclude archived issues (show only active)
+            filter.status = { $ne: 'archived' };
+        }
+
+        if (category && category !== 'all') {
+            filter.category = category;
+        }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -22,6 +34,7 @@ exports.getAllIssues = async (req, res) => {
 
         const total = await AdminIssue.countDocuments(filter);
 
+        // Stats: count all issues (including archived) for dashboard cards
         const stats = {
             total: await AdminIssue.countDocuments(),
             reported: await AdminIssue.countDocuments({ status: 'reported' }),
@@ -77,7 +90,6 @@ exports.getIssueDetails = async (req, res) => {
 exports.updateStatus = async (req, res) => {
     try {
         const { status, comment } = req.body;
-
         if (!status || !comment) {
             return res.status(400).json({
                 success: false,
@@ -85,86 +97,83 @@ exports.updateStatus = async (req, res) => {
             });
         }
 
-        const issue = await AdminIssue.findById(req.params.id);
-        if (!issue) {
+        const adminIssue = await AdminIssue.findById(req.params.id);
+        if (!adminIssue) {
             return res.status(404).json({
                 success: false,
-                message: 'Issue not found'
+                message: 'Admin issue not found'
             });
         }
 
-        const oldStatus = issue.status;
+        const oldStatus = adminIssue.status;
 
-        issue.statusHistory.push({
-            status,
-            comment,
-            updatedBy: req.user.id,
-            updatedByName: req.user.name,
-            updatedAt: new Date()
-        });
+        // Use the service to update both models atomically (includes history)
+        await updateIssueStatus(adminIssue.originalReportId, status, req.user.id, req.user.name, comment);
 
-        issue.status = status;
-
-        if (status === 'in_progress' && !issue.resolutionTimeline?.inProgressAt) {
-            issue.resolutionTimeline.inProgressAt = new Date();
-        } else if (status === 'resolved' && !issue.resolutionTimeline?.resolvedAt) {
-            issue.resolutionTimeline.resolvedAt = new Date();
-        }
-
-        await issue.save();
-        await Report.findByIdAndUpdate(issue.originalReportId, {
-            status: status,
-            updatedAt: new Date()
-        });
+        // ========== Notify followers & author ==========
         await notifyFollowers(
-            issue.originalReportId,   // the original report ID (used in follows)
-            req.user.id,              // exclude the admin who made the change
+            adminIssue.originalReportId,
+            req.user.id,
             {
                 type: 'status_change',
-                title: `Issue status updated: ${issue.title}`,
+                title: `Issue status updated: ${adminIssue.title}`,
                 message: `Status changed from ${oldStatus} to ${status}. ${comment}`,
-                relatedIssue: issue.originalReportId,
+                relatedIssue: adminIssue.originalReportId,
                 metadata: { oldStatus, newStatus: status }
             }
         );
 
         await notifyAuthor(
-            issue.originalReportId,
+            adminIssue.originalReportId,
             req.user.id,
             {
                 type: 'status_change',
-                title: `Your issue status updated: ${issue.title}`,
+                title: `Your issue status updated: ${adminIssue.title}`,
                 message: `Status changed from ${oldStatus} to ${status}. ${comment}`,
-                relatedIssue: issue.originalReportId,
+                relatedIssue: adminIssue.originalReportId,
                 metadata: { oldStatus, newStatus: status }
             }
         );
 
-        await Report.findByIdAndUpdate(issue.originalReportId, {
-            status: status,
-            updatedAt: new Date()
-        });
+        // Create regular activity (fire and forget)
+        Activity.create({
+            type: 'status_update',
+            issue: adminIssue.originalReportId,
+            issueTitle: adminIssue.title,
+            issueCategory: adminIssue.category,
+            user: req.user.id,
+            userName: req.user.name,
+            content: `Status changed from ${oldStatus} to ${status}. Comment: ${comment}`,
+            importance: 'high',
+            createdAt: new Date()
+        }).catch(err => console.error('Activity creation failed:', err.message));
 
+        // ========== AdminActivity with analytics ==========
         try {
-            await Activity.create({
+            await AdminActivity.create({
                 type: 'status_update',
-                issue: issue.originalReportId,
-                issueTitle: issue.title,
-                issueCategory: issue.category,
+                issue: adminIssue.originalReportId,
+                issueTitle: adminIssue.title,
+                issueCategory: adminIssue.category,
                 user: req.user.id,
                 userName: req.user.name,
                 content: `Status changed from ${oldStatus} to ${status}. Comment: ${comment}`,
-                importance: 'high',
+                priority: 'high',
+                metadata: { oldStatus, newStatus: status },
+                analytics: {
+                    responseTime: adminIssue.resolutionTimeline?.reportedAt
+                        ? Math.round((new Date() - new Date(adminIssue.resolutionTimeline.reportedAt)) / 60000)
+                        : 0
+                },
                 createdAt: new Date()
             });
-        } catch (activityError) {
-            console.error('Activity creation failed:', activityError.message);
+        } catch (err) {
+            console.error('AdminActivity creation failed:', err.message);
         }
 
         res.json({
             success: true,
-            message: 'Status updated successfully',
-            data: issue
+            message: 'Status updated successfully'
         });
     } catch (error) {
         console.error('Update status error:', error);
@@ -222,6 +231,25 @@ exports.publishFinalUpdate = async (req, res) => {
                 importance: 'high',
                 createdAt: new Date()
             });
+
+            // AdminActivity with analytics
+            await AdminActivity.create({
+                type: 'issue_resolved',
+                issue: issue.originalReportId,
+                issueTitle: issue.title,
+                issueCategory: issue.category,
+                user: req.user.id,
+                userName: req.user.name,
+                content: `Issue resolved: ${statement.substring(0, 100)}`,
+                priority: 'high',
+                metadata: {},
+                analytics: {
+                    responseTime: issue.resolutionTimeline?.reportedAt
+                        ? Math.round((new Date() - new Date(issue.resolutionTimeline.reportedAt)) / 60000)
+                        : 0
+                },
+                createdAt: new Date()
+            });
         } catch (activityError) {
             console.error('Activity creation failed:', activityError.message);
         }
@@ -247,6 +275,7 @@ exports.getStats = async (req, res) => {
             reported: await AdminIssue.countDocuments({ status: 'reported' }),
             inProgress: await AdminIssue.countDocuments({ status: 'in_progress' }),
             resolved: await AdminIssue.countDocuments({ status: 'resolved' }),
+            archived: await AdminIssue.countDocuments({ status: 'archived' }),   // ✅ added
 
             byCategory: {
                 pothole: await AdminIssue.countDocuments({ category: 'pothole' }),
@@ -355,5 +384,76 @@ exports.syncReports = async (req, res) => {
     } catch (error) {
         console.error('Sync error:', error);
         res.status(500).json({ success: false, message: error.message || 'Sync failed' });
+    }
+};
+
+exports.archiveIssue = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { comment } = req.body;
+
+        const adminIssue = await AdminIssue.findById(id);
+        if (!adminIssue) {
+            return res.status(404).json({ success: false, message: 'Admin issue not found' });
+        }
+
+        const report = await Report.findById(adminIssue.originalReportId);
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Original report not found' });
+        }
+
+        if (report.status !== 'resolved') {
+            return res.status(400).json({ success: false, message: 'Only resolved issues can be archived' });
+        }
+
+        await updateIssueStatus(report._id, 'archived', req.user.id, req.user.name, comment || 'Archived by admin');
+        res.json({ success: true, message: 'Issue archived' });
+    } catch (error) {
+        console.error('Archive error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.reactivateIssue = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { comment } = req.body;
+
+        const adminIssue = await AdminIssue.findById(id);
+        if (!adminIssue) {
+            return res.status(404).json({ success: false, message: 'Admin issue not found' });
+        }
+
+        // ✅ Use adminIssue.status as the authority (what the admin sees)
+        if (adminIssue.status !== 'archived') {
+            return res.status(400).json({ success: false, message: 'Only archived issues can be reactivated' });
+        }
+
+        let report = await Report.findById(adminIssue.originalReportId);
+        if (!report) {
+            return res.status(404).json({ success: false, message: 'Original report not found' });
+        }
+
+        // 🔧 Fix inconsistency: if the report is not archived, force it to match the adminIssue
+        if (report.status !== 'archived') {
+            console.log(`⚠️ Report ${report._id} has status '${report.status}', but adminIssue is archived. Syncing report to 'archived'...`);
+            report.status = 'archived';
+            // Also add a history entry to record this sync
+            report.statusHistory.push({
+                status: 'archived',
+                at: new Date(),
+                updatedBy: req.user.id,
+                updatedByName: req.user.name,
+                comment: 'Status synced from admin issue (was inconsistent)'
+            });
+            await report.save();
+        }
+
+        // Now the report is definitely 'archived', so the transition to 'reported' is valid
+        await updateIssueStatus(report._id, 'reported', req.user.id, req.user.name, comment || 'Reactivated by admin');
+        res.json({ success: true, message: 'Issue reactivated' });
+    } catch (error) {
+        console.error('Reactivate error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };

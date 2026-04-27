@@ -7,6 +7,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import Captcha from '../components/Captcha';
 import ShareModal from '../components/ShareModal';
+import useDraft from '../hooks/useDraft';
+import AutoSave from '../components/AutoSave';
+import DraftReminder from '../components/DraftReminder';
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -62,7 +65,6 @@ const CreateReport = () => {
     const [submittedReport, setSubmittedReport] = useState(null);
     const [showShareModal, setShowShareModal] = useState(false);
     const [copied, setCopied] = useState(false);
-    // Map is now always visible, no need for showMap state
     const [isUpdatingFromMap, setIsUpdatingFromMap] = useState(false);
 
     // New state for captcha
@@ -81,6 +83,54 @@ const CreateReport = () => {
 
     const [photos, setPhotos] = useState([]);
     const [previews, setPreviews] = useState([]);
+
+    // ========== DRAFT FUNCTIONALITY (from second file) ==========
+    const { draftData, showReminder, saveDraft, loadDraft, clearDraft, hasDraft } = useDraft({
+        title: '',
+        description: '',
+        category: '',
+        address: '',
+        location: null,
+        photos: [], // only store URLs? For simplicity we skip file restore
+    });
+
+    // Auto-fill form with draft data when loaded
+    useEffect(() => {
+        if (draftData && draftData.title) {
+            setFormData(prev => ({
+                ...prev,
+                title: draftData.title || '',
+                description: draftData.description || '',
+                category: draftData.category || '',
+                address: draftData.address || prev.address,
+            }));
+            if (draftData.location) {
+                setLocation(draftData.location);
+                // Optionally fetch address again, but skip for brevity
+            }
+            // Photos are not restored from draft (file objects can't be stored in localStorage)
+        }
+    }, [draftData]);
+
+    const handleAutoSave = () => {
+        saveDraft({
+            title: formData.title,
+            description: formData.description,
+            category: formData.category,
+            address: formData.address,
+            location: location,
+        });
+    };
+
+    const handleLoadDraft = () => {
+        loadDraft();
+        // No need to setShowReminder(false) – the hook already clears it
+    };
+
+    const handleDismissDraft = () => {
+        clearDraft();
+    };
+    // ========================================
 
     // Calculate distance between two points
     const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -407,7 +457,9 @@ const CreateReport = () => {
 
             if (response.data.success) {
                 setSubmittedReport(response.data.report);
-                // Reset captcha after successful submission
+                // Clear draft after successful submission
+                clearDraft();
+                // Reset captcha
                 resetCaptcha();
                 // Scroll to top to show share section
                 window.scrollTo(0, 0);
@@ -484,7 +536,7 @@ const CreateReport = () => {
         return (
             <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 py-12 px-4">
                 <div className="max-w-2xl mx-auto">
-                    {/* Success Card */}
+                    {/* Success Card (unchanged) */}
                     <div className="bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-500">
                         {/* Animated Success Header */}
                         <div className="relative bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-8 text-center">
@@ -677,6 +729,20 @@ const CreateReport = () => {
     // Otherwise show the normal form
     return (
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+            {/* Draft Reminder Modal (new) */}
+            {showReminder && (
+                <DraftReminder onLoad={handleLoadDraft} onDismiss={handleDismissDraft} />
+            )}
+
+            {/* AutoSave Component (new) */}
+            <AutoSave data={{
+                title: formData.title,
+                description: formData.description,
+                category: formData.category,
+                address: formData.address,
+                location: location,
+            }} onSave={handleAutoSave} interval={30000} />
+
             {/* Header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900">Report a New Issue</h1>
@@ -896,12 +962,19 @@ const CreateReport = () => {
                             </div>
                         </div>
 
-                        {/* Submit Button */}
-                        <div className="px-6 py-4 bg-gray-50 border-t">
+                        {/* Submit Button + Manual Draft Save (new) */}
+                        <div className="px-6 py-4 bg-gray-50 border-t flex gap-3">
+                            <button
+                                type="button"
+                                onClick={handleAutoSave}
+                                className="px-6 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors duration-200"
+                            >
+                                Save as Draft
+                            </button>
                             <button
                                 type="submit"
                                 disabled={submitting || !location || !formData.category || !captchaToken}
-                                className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                                className="flex-1 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                             >
                                 {submitting ? (
                                     <span className="flex items-center justify-center">

@@ -10,12 +10,16 @@ const {
     getActivityFeed,
     getIssueActivities,
     getIssues,
-    getIssue
+    getIssue,
+    requestReopen,
+    getIssueStats,
+    requestUpdate           // <-- Added from second file
 } = require('../controllers/issueController');
 const { protect } = require('../middleware/authMiddleware');
 
 // PUBLIC ROUTES - No authentication required
 router.get('/activities/feed', getActivityFeed);
+router.get('/stats', protect, getIssueStats);
 router.get('/', getIssues);
 router.get('/:id', getIssue);
 
@@ -29,5 +33,12 @@ router.get('/:id/activities', protect, getIssueActivities);
 router.post('/:id/comments', protect, addComment);
 router.put('/:id/comments/:commentId', protect, editComment);
 router.delete('/:id/comments/:commentId', protect, deleteComment);
+
+router.post('/:id/request-reopen', protect, requestReopen);
+
+// ---- Added from second file ----
+// UPDATE ROUTES
+router.post('/:id/request-update', protect, requestUpdate);
+// -------------------------------
 
 module.exports = router;

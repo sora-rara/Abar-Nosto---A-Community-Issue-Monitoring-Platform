@@ -119,7 +119,14 @@ exports.createReport = async (req, res) => {
             },
             photos: uploadedPhotos
         });
-
+        report.statusHistory = [{
+            status: 'reported',
+            at: new Date(),
+            updatedBy: report.user,
+            updatedByName: req.user.name,
+            comment: 'Issue reported'
+        }];
+        await report.save();
         await report.populate('user', 'name');
 
         // ========== ACTIVITY CREATION ==========
@@ -137,6 +144,23 @@ exports.createReport = async (req, res) => {
                 createdAt: new Date()
             });
             console.log(`✅ Activity created for new issue: ${report.title}`);
+            // Also create in AdminActivity for admin feed
+            const AdminActivity = require('../models/AdminActivity');
+            await AdminActivity.create({
+                type: 'new_issue',
+                issue: report._id,
+                issueTitle: report.title,
+                issueCategory: report.category,
+                user: req.user.id,
+                userName: req.user.name,
+                content: `New issue reported: ${report.title}`,
+                priority: 'high',
+                metadata: {},
+                createdAt: new Date()
+            });
+            console.log(`✅ AdminActivity created for new issue: ${report.title}`);
+
+
         } catch (activityError) {
             console.error('Activity creation failed:', activityError.message);
         }

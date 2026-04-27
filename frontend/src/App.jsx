@@ -16,6 +16,17 @@ import SharedIssue from './pages/SharedIssue';
 import UserProfile from './pages/UserProfile';
 import AdminReputation from './pages/AdminReputation';
 
+// ===== ADDED from second file =====
+import AdminWardStats from './components/AdminWardStats';
+import AdminActivityFeed from './pages/AdminActivityFeed';
+// =================================
+
+// ===== NEW from second file =====
+import AuthorityDirectory from './components/AuthorityDirectory';
+import AdminAuthorityManager from './pages/AdminAuthorityManager';
+import AdminSummaryGenerator from './pages/AdminSummaryGenerator';
+// =================================
+
 axios.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
@@ -90,6 +101,38 @@ function App() {
                                 <AdminDashboard />
                             </ProtectedRoute>
                         } />
+
+                        {/* ===== ADDED from second file ===== */}
+                        <Route path="/admin/stats" element={
+                            <ProtectedRoute requireAdmin={true}>
+                                <AdminWardStats />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/admin/activity-feed" element={
+                            <ProtectedRoute requireAdmin={true}>
+                                <AdminActivityFeed />
+                            </ProtectedRoute>
+                        } />
+                        {/* ================================== */}
+
+                        {/* ===== NEW from second file ===== */}
+                        <Route path="/authorities" element={
+                            <ProtectedRoute>
+                                <AuthorityDirectory />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/admin/authorities" element={
+                            <ProtectedRoute requireAdmin={true}>
+                                <AdminAuthorityManager />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/admin/issues" element={<AdminDashboard />} />
+                        <Route path="/admin/summary" element={
+                            <ProtectedRoute requireAdmin={true}>
+                                <AdminSummaryGenerator />
+                            </ProtectedRoute>
+                        } />
+                        {/* ================================== */}
 
                         <Route path="/search" element={
                             <ProtectedRoute>

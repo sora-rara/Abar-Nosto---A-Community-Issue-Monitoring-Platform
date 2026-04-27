@@ -1,21 +1,20 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import IssueCard from './IssueCard';
 import LiveActivityFeed from './LiveActivityFeed';
-import Navbar from '../components/Navbar';
 
 const UpDashboard = () => {
     const navigate = useNavigate();
     const [userName, setUserName] = useState('');
-    const [userInitial, setUserInitial] = useState('');
     const [issues, setIssues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
         total: 0,
-        resolved: 0,
+        reported: 0,
         inProgress: 0,
-        reported: 0
+        resolved: 0,
+        archived: 0
     });
     const [filters, setFilters] = useState({
         category: 'all',
@@ -23,6 +22,7 @@ const UpDashboard = () => {
         sort: 'recent'
     });
 
+    // Redirect if not logged in
     useEffect(() => {
         const token = localStorage.getItem('token');
         const name = localStorage.getItem('userName') || 'User';
@@ -30,10 +30,14 @@ const UpDashboard = () => {
             navigate('/login');
         } else {
             setUserName(name);
-            setUserInitial(name.charAt(0).toUpperCase());
-            fetchIssues();
+            fetchStats(); // fetch stats once on mount
         }
     }, [navigate]);
+
+    // Fetch issues whenever filters change
+    useEffect(() => {
+        fetchIssues();
+    }, [filters]);
 
     const fetchIssues = async () => {
         try {
@@ -55,18 +59,31 @@ const UpDashboard = () => {
             });
 
             setIssues(response.data);
-
-            // Calculate stats
-            const total = response.data.length;
-            const resolved = response.data.filter(i => i.status === 'resolved').length;
-            const inProgress = response.data.filter(i => i.status === 'in_progress').length;
-            const reported = response.data.filter(i => i.status === 'reported').length;
-
-            setStats({ total, resolved, inProgress, reported });
+            // ✅ NO STATS CALCULATION HERE
         } catch (error) {
             console.error('Error fetching issues:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchStats = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get('http://localhost:5000/api/issues/stats', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.data.success) {
+                setStats({
+                    total: response.data.total,
+                    reported: response.data.reported,
+                    inProgress: response.data.inProgress,
+                    resolved: response.data.resolved,
+                    archived: response.data.archived
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching stats:', error);
         }
     };
 
@@ -78,10 +95,6 @@ const UpDashboard = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-
-
-            {/* Main Content */}
             <main className="container mx-auto px-4 py-8">
                 {/* Welcome Section */}
                 <div className="mb-8">
@@ -93,8 +106,8 @@ const UpDashboard = () => {
                     </p>
                 </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                {/* Stats Cards - includes Archived */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
                     <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
                         <p className="text-sm text-gray-600 mb-1">Total Issues</p>
                         <p className="text-3xl font-bold text-gray-800">{stats.total}</p>
@@ -111,9 +124,12 @@ const UpDashboard = () => {
                         <p className="text-sm text-gray-600 mb-1">Resolved</p>
                         <p className="text-3xl font-bold text-green-600">{stats.resolved}</p>
                     </div>
+                    <div className="bg-white rounded-lg shadow p-6 border-l-4 border-gray-500">
+                        <p className="text-sm text-gray-600 mb-1">Archived</p>
+                        <p className="text-3xl font-bold text-gray-600">{stats.archived}</p>
+                    </div>
                 </div>
 
-                {/* Main Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left Column - Issues List */}
                     <div className="lg:col-span-2">
@@ -146,6 +162,7 @@ const UpDashboard = () => {
                                         <option value="reported">Reported</option>
                                         <option value="in_progress">In Progress</option>
                                         <option value="resolved">Resolved</option>
+                                        <option value="archived">Archived</option>
                                     </select>
 
                                     <select
@@ -173,7 +190,6 @@ const UpDashboard = () => {
                                 </svg>
                                 <h3 className="text-xl font-semibold text-gray-700 mb-2">No issues found</h3>
                                 <p className="text-gray-500 mb-6">Check back later for community issues in your area.</p>
-                                {/* REMOVED: Report an Issue button */}
                             </div>
                         ) : (
                             <div>

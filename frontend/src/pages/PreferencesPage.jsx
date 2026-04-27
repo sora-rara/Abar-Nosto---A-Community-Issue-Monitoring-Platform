@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';      // ✅ for navigation
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const PreferencesPage = () => {
-    const navigate = useNavigate();                  // ✅
+    const navigate = useNavigate();
     const [notifications, setNotifications] = useState([]);
     const [loadingNotifs, setLoadingNotifs] = useState(true);
     const [prefs, setPrefs] = useState({
@@ -12,6 +12,8 @@ const PreferencesPage = () => {
         onStatusChange: true,
         onNewComment: true,
         onUpvoteReceived: true,
+        onIssueArchived: true,        // ✅ new
+        onIssueReactivated: true,
         nearbyRadius: 1000,
         savedLocation: null
     });
@@ -55,6 +57,8 @@ const PreferencesPage = () => {
                     onStatusChange: data.onStatusChange ?? true,
                     onNewComment: data.onNewComment ?? true,
                     onUpvoteReceived: data.onUpvoteReceived ?? true,
+                    onIssueArchived: data.onIssueArchived ?? true,
+                    onIssueReactivated: data.onIssueReactivated ?? true,
                     nearbyRadius: data.nearbyRadius ?? 1000,
                     savedLocation: data.savedLocation || null
                 });
@@ -277,6 +281,30 @@ const PreferencesPage = () => {
                                         <div>
                                             <span className="font-medium text-gray-700">Upvotes on my reports</span>
                                             <p className="text-sm text-gray-500">When someone upvotes your issue</p>
+                                        </div>
+                                    </label>
+                                    <label className="flex items-start space-x-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={prefs.onIssueArchived}
+                                            onChange={(e) => updatePreference('onIssueArchived', e.target.checked)}
+                                            className="mt-1 w-4 h-4 text-blue-600 rounded"
+                                        />
+                                        <div>
+                                            <span className="font-medium text-gray-700">Issue Archived</span>
+                                            <p className="text-sm text-gray-500">When an issue you follow is archived</p>
+                                        </div>
+                                    </label>
+                                    <label className="flex items-start space-x-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={prefs.onIssueReactivated}
+                                            onChange={(e) => updatePreference('onIssueReactivated', e.target.checked)}
+                                            className="mt-1 w-4 h-4 text-blue-600 rounded"
+                                        />
+                                        <div>
+                                            <span className="font-medium text-gray-700">Issue Reactivated</span>
+                                            <p className="text-sm text-gray-500">When an archived issue is reopened</p>
                                         </div>
                                     </label>
                                 </div>

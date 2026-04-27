@@ -12,7 +12,8 @@ const AdminDashboard = () => {
         total: 0,
         reported: 0,
         inProgress: 0,
-        resolved: 0
+        resolved: 0,
+        archived: 0
     });
     const [filters, setFilters] = useState({
         status: 'all',
@@ -26,6 +27,7 @@ const AdminDashboard = () => {
     });
     const [finalUpdate, setFinalUpdate] = useState('');
     const [updating, setUpdating] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
 
     useEffect(() => {
         const token = authService.getToken();
@@ -36,7 +38,6 @@ const AdminDashboard = () => {
             return;
         }
 
-        // Check if user is admin
         if (!(currentUser.isAdmin || currentUser.role === 'admin')) {
             alert('Access denied. Admin only.');
             authService.logout();
@@ -45,36 +46,35 @@ const AdminDashboard = () => {
         }
 
         setUser(currentUser);
-        fetchIssues();
         fetchStats();
     }, [navigate]);
 
-    // Fetch issues whenever filters change
     useEffect(() => {
         if (user) {
             fetchIssues();
         }
-    }, [filters.status, filters.category]);
+    }, [filters.status, filters.category, showArchived]);
 
     const fetchIssues = async () => {
         try {
             const token = authService.getToken();
-            
-            // Build query parameters
             const params = new URLSearchParams();
-            if (filters.status !== 'all') params.append('status', filters.status);
-            if (filters.category !== 'all') params.append('category', filters.category);
-            
+
+            if (showArchived) {
+                params.append('status', 'archived');
+            } else if (filters.status !== 'all') {
+                params.append('status', filters.status);
+            }
+
+            if (filters.category !== 'all') {
+                params.append('category', filters.category);
+            }
+
             const url = `http://localhost:5000/api/admin/issues${params.toString() ? `?${params.toString()}` : ''}`;
-            
-            console.log('Fetching issues from:', url);
-            
             const response = await axios.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            console.log('Issues response:', response.data);
-            
             if (response.data.success) {
                 setIssues(response.data.data || []);
             } else {
@@ -95,15 +95,13 @@ const AdminDashboard = () => {
             const response = await axios.get('http://localhost:5000/api/admin/stats', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-
-            console.log('Stats response:', response.data);
-            
             if (response.data.success) {
-                setStats(response.data.data || {
-                    total: 0,
-                    reported: 0,
-                    inProgress: 0,
-                    resolved: 0
+                setStats({
+                    total: response.data.data.total,
+                    reported: response.data.data.reported,
+                    inProgress: response.data.data.inProgress,
+                    resolved: response.data.data.resolved,
+                    archived: response.data.data.archived || 0
                 });
             }
         } catch (error) {
@@ -180,10 +178,10 @@ const AdminDashboard = () => {
 
     const handleViewAllIssues = () => {
         setFilters({ status: 'all', category: 'all' });
+        setShowArchived(false);
     };
 
     const handleGenerateReport = () => {
-        // Generate CSV report of all issues
         const csvContent = [
             ['Title', 'Category', 'Status', 'Reported By', 'Date', 'Description'].join(','),
             ...issues.map(issue => [
@@ -206,13 +204,15 @@ const AdminDashboard = () => {
     };
 
     const getStatusBadge = (status) => {
-        switch(status) {
+        switch (status) {
             case 'reported':
                 return <span style={{ backgroundColor: '#fef3c7', color: '#92400e', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>Reported</span>;
             case 'in_progress':
                 return <span style={{ backgroundColor: '#dbeafe', color: '#1e40af', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>In Progress</span>;
             case 'resolved':
                 return <span style={{ backgroundColor: '#d1fae5', color: '#065f46', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>Resolved</span>;
+            case 'archived':
+                return <span style={{ backgroundColor: '#e5e7eb', color: '#374151', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>Archived</span>;
             default:
                 return <span style={{ backgroundColor: '#f3f4f6', color: '#4b5563', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>{status}</span>;
         }
@@ -225,6 +225,36 @@ const AdminDashboard = () => {
             month: 'short',
             day: 'numeric'
         });
+    };
+
+    const handleArchive = async (issue) => {
+        if (!window.confirm(`Archive issue "${issue.title}"? It will be hidden from the active dashboard.`)) return;
+        try {
+            const token = authService.getToken();
+            await axios.patch(`/api/admin/issues/${issue._id}/archive`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('Issue archived');
+            fetchIssues();
+            fetchStats();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Archive failed');
+        }
+    };
+
+    const handleReactivate = async (issue) => {
+        if (!window.confirm(`Reactivate issue "${issue.title}"? It will reappear on the active dashboard.`)) return;
+        try {
+            const token = authService.getToken();
+            await axios.patch(`/api/admin/issues/${issue._id}/reactivate`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('Issue reactivated');
+            fetchIssues();
+            fetchStats();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Reactivate failed');
+        }
     };
 
     if (loading) {
@@ -269,9 +299,7 @@ const AdminDashboard = () => {
             background: '#f5f5f5',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
         }}>
-            {/* Main Content */}
             <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '30px 20px' }}>
-                {/* Welcome Message */}
                 <div style={{ marginBottom: '30px' }}>
                     <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#333', marginBottom: '5px' }}>
                         Admin Dashboard
@@ -281,10 +309,10 @@ const AdminDashboard = () => {
                     </p>
                 </div>
 
-                {/* Stats Cards */}
+                {/* Stats Cards - 5 columns including Archived */}
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gridTemplateColumns: 'repeat(5, 1fr)',
                     gap: '20px',
                     marginBottom: '30px'
                 }}>
@@ -328,6 +356,17 @@ const AdminDashboard = () => {
                         <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>Resolved</div>
                         <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{stats.resolved}</div>
                     </div>
+                    {/* Archived Card */}
+                    <div style={{
+                        backgroundColor: 'white',
+                        padding: '20px',
+                        borderRadius: '10px',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                        borderLeft: '4px solid #9ca3af'
+                    }}>
+                        <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>Archived</div>
+                        <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{stats.archived}</div>
+                    </div>
                 </div>
 
                 {/* Quick Actions */}
@@ -354,6 +393,37 @@ const AdminDashboard = () => {
                         >
                             View All Issues
                         </button>
+
+                        <button
+                            onClick={() => navigate('/admin/activity-feed')}
+                            style={{
+                                padding: '10px 20px',
+                                backgroundColor: '#8b5cf6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '5px',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                            }}
+                        >
+                            📊 Activity Feed
+                        </button>
+
+                        <button
+                            onClick={() => window.location.href = '/admin/stats'}
+                            style={{
+                                padding: '10px 20px',
+                                backgroundColor: '#10b981',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '5px',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                            }}
+                        >
+                            📊 Ward Statistics
+                        </button>
+
                         <button
                             onClick={handleGenerateReport}
                             style={{
@@ -368,65 +438,96 @@ const AdminDashboard = () => {
                         >
                             Generate Report
                         </button>
+
+                        <button
+                            onClick={() => setShowArchived(false)}
+                            style={{
+                                padding: '10px 20px',
+                                backgroundColor: !showArchived ? '#3b82f6' : '#e5e7eb',
+                                color: !showArchived ? 'white' : '#333',
+                                border: 'none',
+                                borderRadius: '5px',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                            }}
+                        >
+                            Active Issues
+                        </button>
+                        <button
+                            onClick={() => setShowArchived(true)}
+                            style={{
+                                padding: '10px 20px',
+                                backgroundColor: showArchived ? '#3b82f6' : '#e5e7eb',
+                                color: showArchived ? 'white' : '#333',
+                                border: 'none',
+                                borderRadius: '5px',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                            }}
+                        >
+                            Archived Issues
+                        </button>
                     </div>
                 </div>
 
-                {/* Filters - No Apply Button */}
-                <div style={{
-                    backgroundColor: 'white',
-                    padding: '20px',
-                    borderRadius: '10px',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-                    marginBottom: '20px'
-                }}>
-                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div>
-                            <label style={{ fontSize: '14px', color: '#666', marginRight: '10px' }}>Status:</label>
-                            <select
-                                value={filters.status}
-                                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                                style={{
-                                    padding: '8px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '5px',
-                                    fontSize: '14px',
-                                    width: '150px'
-                                }}
-                            >
-                                <option value="all">All Status</option>
-                                <option value="reported">Reported</option>
-                                <option value="in_progress">In Progress</option>
-                                <option value="resolved">Resolved</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style={{ fontSize: '14px', color: '#666', marginRight: '10px' }}>Category:</label>
-                            <select
-                                value={filters.category}
-                                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-                                style={{
-                                    padding: '8px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: '5px',
-                                    fontSize: '14px',
-                                    width: '150px'
-                                }}
-                            >
-                                <option value="all">All Categories</option>
-                                <option value="pothole">Pothole</option>
-                                <option value="broken_light">Broken Light</option>
-                                <option value="drainage">Drainage</option>
-                                <option value="flooding">Flooding</option>
-                                <option value="garbage">Garbage</option>
-                                <option value="debris">Debris</option>
-                                <option value="hazard">Hazard</option>
-                                <option value="other">Other</option>
-                            </select>
+                {/* Filters (only for active issues) */}
+                {!showArchived && (
+                    <div style={{
+                        backgroundColor: 'white',
+                        padding: '20px',
+                        borderRadius: '10px',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                        marginBottom: '20px'
+                    }}>
+                        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <div>
+                                <label style={{ fontSize: '14px', color: '#666', marginRight: '10px' }}>Status:</label>
+                                <select
+                                    value={filters.status}
+                                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                                    style={{
+                                        padding: '8px',
+                                        border: '1px solid #ddd',
+                                        borderRadius: '5px',
+                                        fontSize: '14px',
+                                        width: '150px'
+                                    }}
+                                >
+                                    <option value="all">All Status</option>
+                                    <option value="reported">Reported</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="resolved">Resolved</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '14px', color: '#666', marginRight: '10px' }}>Category:</label>
+                                <select
+                                    value={filters.category}
+                                    onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                                    style={{
+                                        padding: '8px',
+                                        border: '1px solid #ddd',
+                                        borderRadius: '5px',
+                                        fontSize: '14px',
+                                        width: '150px'
+                                    }}
+                                >
+                                    <option value="all">All Categories</option>
+                                    <option value="pothole">Pothole</option>
+                                    <option value="broken_light">Broken Light</option>
+                                    <option value="drainage">Drainage</option>
+                                    <option value="flooding">Flooding</option>
+                                    <option value="garbage">Garbage</option>
+                                    <option value="debris">Debris</option>
+                                    <option value="hazard">Hazard</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
 
-                {/* Recent Issues Table */}
+                {/* Issues Table */}
                 <div style={{
                     backgroundColor: 'white',
                     padding: '20px',
@@ -434,14 +535,13 @@ const AdminDashboard = () => {
                     boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
                 }}>
                     <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#333', marginBottom: '15px' }}>
-                        Recent Issues {issues.length > 0 && `(${issues.length})`}
+                        {showArchived ? 'Archived Issues' : 'Active Issues'} {issues.length > 0 && `(${issues.length})`}
                     </h3>
 
                     {issues.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
                             <div style={{ fontSize: '48px', marginBottom: '10px' }}>📭</div>
-                            <p>No issues found</p>
-                            <p style={{ fontSize: '14px' }}>Issues will appear here once users start reporting</p>
+                            <p>No {showArchived ? 'archived' : 'active'} issues found</p>
                         </div>
                     ) : (
                         <div style={{ overflowX: 'auto' }}>
@@ -458,9 +558,7 @@ const AdminDashboard = () => {
                                 </thead>
                                 <tbody>
                                     {issues.map((issue, index) => {
-                                        // Handle both possible field names (user.name or reporterName)
                                         const reporterName = issue.reporterName || (issue.user && issue.user.name) || 'Unknown';
-                                        
                                         return (
                                             <tr key={issue._id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: index % 2 === 0 ? 'white' : '#fafafa' }}>
                                                 <td style={{ padding: '12px', fontSize: '14px' }}>
@@ -474,6 +572,11 @@ const AdminDashboard = () => {
                                                 </td>
                                                 <td style={{ padding: '12px' }}>
                                                     {getStatusBadge(issue.status)}
+                                                    {issue.reopenRequested && (
+                                                        <span style={{ marginLeft: '8px', fontSize: '10px', backgroundColor: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '12px' }}>
+                                                            Reopen requested
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td style={{ padding: '12px', fontSize: '14px', color: '#666' }}>
                                                     {reporterName}
@@ -491,11 +594,44 @@ const AdminDashboard = () => {
                                                             border: 'none',
                                                             borderRadius: '4px',
                                                             cursor: 'pointer',
-                                                            fontSize: '12px'
+                                                            fontSize: '12px',
+                                                            marginRight: '8px'
                                                         }}
                                                     >
                                                         Manage
                                                     </button>
+                                                    {!showArchived && issue.status === 'resolved' && (
+                                                        <button
+                                                            onClick={() => handleArchive(issue)}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                backgroundColor: '#eab308',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '4px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '12px'
+                                                            }}
+                                                        >
+                                                            Archive
+                                                        </button>
+                                                    )}
+                                                    {showArchived && issue.status === 'archived' && (
+                                                        <button
+                                                            onClick={() => handleReactivate(issue)}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                backgroundColor: '#10b981',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '4px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '12px'
+                                                            }}
+                                                        >
+                                                            Reactivate
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         );

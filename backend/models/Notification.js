@@ -2,9 +2,21 @@ const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    // models/Notification.js
     type: {
         type: String,
-        enum: ['followed_issue_update', 'nearby_issue', 'status_change', 'new_comment', 'upvote_received'],
+        enum: [
+            'followed_issue_update',
+            'nearby_issue',
+            'status_change',
+            'new_comment',
+            'upvote_received',
+            'reopen_request',
+            'issue_archived',      // ✅ existing
+            'issue_reactivated',    // ✅ existing
+            'reputation_change',   // ✅ added from second file
+            'update_request'       // ✅ added from second file
+        ],
         required: true
     },
     title: { type: String, required: true },

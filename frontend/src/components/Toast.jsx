@@ -3,6 +3,8 @@ import { FaRegCommentAlt } from 'react-icons/fa';
 import { FaRegChartBar } from 'react-icons/fa6';
 import { FaLocationDot } from 'react-icons/fa6';
 import { FaBell } from 'react-icons/fa';
+import { FaArchive } from 'react-icons/fa';
+import { FaUndoAlt } from 'react-icons/fa';
 
 const Toast = ({ notification, onClose }) => {
     const [visible, setVisible] = useState(true);
@@ -17,6 +19,8 @@ const Toast = ({ notification, onClose }) => {
 
     if (!visible) return null;
 
+
+
     const getIcon = () => {
         switch (notification.type) {
             case 'new_comment':
@@ -25,6 +29,10 @@ const Toast = ({ notification, onClose }) => {
                 return <FaRegChartBar size={20} style={{ flexShrink: 0 }} />;
             case 'nearby_issue':
                 return <FaLocationDot size={20} style={{ flexShrink: 0 }} />;
+            case 'issue_archived':           // ✅ moved before default
+                return <FaArchive size={20} style={{ flexShrink: 0 }} />;
+            case 'issue_reactivated':        // ✅ moved before default
+                return <FaUndoAlt size={20} style={{ flexShrink: 0 }} />;
             default:
                 return <FaBell size={20} style={{ flexShrink: 0 }} />;
         }

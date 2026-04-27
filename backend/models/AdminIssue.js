@@ -1,14 +1,14 @@
 const mongoose = require('mongoose');
 
+// Status history subdocument schema
 const statusHistorySchema = new mongoose.Schema({
     status: {
         type: String,
-        enum: ['reported', 'in_progress', 'resolved'],
+        enum: ['reported', 'in_progress', 'resolved', 'archived', 'reopened', 'reopen_requested'],
         required: true
     },
     comment: {
-        type: String,
-        required: true
+        type: String
     },
     updatedBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -25,6 +25,7 @@ const statusHistorySchema = new mongoose.Schema({
     }
 });
 
+// Final update subdocument schema
 const finalUpdateSchema = new mongoose.Schema({
     statement: {
         type: String,
@@ -49,6 +50,7 @@ const finalUpdateSchema = new mongoose.Schema({
     }]
 });
 
+// Main admin issue schema
 const adminIssueSchema = new mongoose.Schema({
     originalReportId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -93,7 +95,7 @@ const adminIssueSchema = new mongoose.Schema({
     reporterEmail: String,
     status: {
         type: String,
-        enum: ['reported', 'in_progress', 'resolved'],
+        enum: ['reported', 'in_progress', 'resolved', 'archived'],
         default: 'reported'
     },
     statusHistory: [statusHistorySchema],
@@ -115,15 +117,15 @@ const adminIssueSchema = new mongoose.Schema({
         default: 0
     },
     resolutionTimeline: {
-        reportedAt: {
-            type: Date
-        },
-        inProgressAt: {
-            type: Date
-        },
-        resolvedAt: {
-            type: Date
-        }
+        reportedAt: Date,
+        inProgressAt: Date,
+        resolvedAt: Date
+    },
+    archivedAt: Date,
+    reactivatedAt: Date,
+    reopenRequested: {
+        type: Boolean,
+        default: false
     },
     adminNotes: [{
         note: String,
@@ -145,7 +147,5 @@ const adminIssueSchema = new mongoose.Schema({
     collection: 'admin_issues',
     timestamps: true
 });
-
-// NO PRE-SAVE MIDDLEWARE - Removed completely to avoid errors
 
 module.exports = mongoose.model('AdminIssue', adminIssueSchema);

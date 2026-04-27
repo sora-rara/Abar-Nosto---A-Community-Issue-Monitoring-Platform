@@ -13,8 +13,24 @@ const ComplaintDetails = () => {
     const [upvoteCount, setUpvoteCount] = useState(0);
     const [downvoteCount, setDownvoteCount] = useState(0);
     const [userVote, setUserVote] = useState(null);
+    // Admin specific states
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [adminIssueId, setAdminIssueId] = useState(null);
+    const [statusUpdate, setStatusUpdate] = useState({ status: '', comment: '' });
+    const [updating, setUpdating] = useState(false);
+    const [reopenRequested, setReopenRequested] = useState(false); // existing
+
+    // ---- Added from second file ----
+    const [requestingUpdate, setRequestingUpdate] = useState(false);
+    const [updateRequestMessage, setUpdateRequestMessage] = useState('');
+    // -------------------------------
 
     useEffect(() => {
+        const token = localStorage.getItem('token');
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user && (user.isAdmin || user.role === 'admin')) {
+            setIsAdmin(true);
+        }
         fetchComplaintDetails();
     }, [id]);
 
@@ -52,10 +68,117 @@ const ComplaintDetails = () => {
                 downvoteCount: downvotes,
                 userVote: userVoteStatus
             });
+
+            setReopenRequested(data.reopenRequested || false); // existing
+
+            // If admin, fetch the admin issue ID for status updates
+            if (isAdmin) {
+                await fetchAdminIssueId(data._id);
+            }
         } catch (error) {
             console.error('Error fetching complaint:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchAdminIssueId = async (reportId) => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`/api/admin/issues/by-report/${reportId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.data.success) {
+                setAdminIssueId(res.data.data._id);
+            }
+        } catch (err) {
+            console.error('Failed to fetch admin issue:', err);
+        }
+    };
+
+    const handleAdminStatusUpdate = async () => {
+        if (!statusUpdate.status || !statusUpdate.comment) {
+            alert('Please select a status and enter a comment');
+            return;
+        }
+        setUpdating(true);
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(
+                `http://localhost:5000/api/admin/issues/${adminIssueId}/status`,
+                { status: statusUpdate.status, comment: statusUpdate.comment },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            alert('Status updated successfully');
+            fetchComplaintDetails();
+            setStatusUpdate({ status: '', comment: '' });
+        } catch (err) {
+            alert(err.response?.data?.message || 'Update failed');
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    const handleReactivate = async () => {
+        if (!window.confirm('Reactivate this archived issue? It will become active again.')) return;
+        setUpdating(true);
+        try {
+            const token = localStorage.getItem('token');
+            await axios.patch(`/api/admin/issues/${adminIssueId}/reactivate`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('Issue reactivated');
+            fetchComplaintDetails();
+        } catch (err) {
+            alert(err.response?.data?.message || 'Reactivate failed');
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    const handleRequestReopen = async () => {
+        if (reopenRequested) return;
+        if (!window.confirm('Request to reopen this issue? Admins will be notified.')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(`/api/issues/${id}/request-reopen`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('Reopen request sent to admin');
+            setReopenRequested(true);
+            fetchComplaintDetails(); // refresh to update any backend state
+        } catch (err) {
+            alert(err.response?.data?.message || 'Request failed');
+        }
+    };
+
+    // ---- Added from second file ----
+    const handleRequestUpdate = async () => {
+        setRequestingUpdate(true);
+        setUpdateRequestMessage('');
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(
+                `http://localhost:5000/api/issues/${id}/request-update`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setUpdateRequestMessage(response.data.message);
+            setTimeout(() => setUpdateRequestMessage(''), 5000);
+        } catch (error) {
+            console.error('Failed to request update:', error);
+            setUpdateRequestMessage('Failed to send request. Please try again later.');
+            setTimeout(() => setUpdateRequestMessage(''), 5000);
+        } finally {
+            setRequestingUpdate(false);
+        }
+    };
+    // -------------------------------
+
+    const formatStatusLabel = (status) => {
+        switch (status) {
+            case 'reopen_requested': return 'Reopen Requested';
+            default: return status?.replace('_', ' ')?.replace(/\b\w/g, l => l.toUpperCase());
         }
     };
 
@@ -190,7 +313,7 @@ const ComplaintDetails = () => {
                             </div>
                         </div>
 
-                        {/* Status Card with Follow Button integrated */}
+                        {/* Status Card with Follow Button & Reopen Request & Update Request */}
                         <div className="bg-white rounded-xl shadow-md overflow-hidden">
                             <div className="bg-blue-600 px-6 py-4">
                                 <h2 className="text-xl font-semibold text-white">Status</h2>
@@ -206,12 +329,10 @@ const ComplaintDetails = () => {
                                     </span>
                                 </div>
 
-                                {/* ✅ Follow Button - just the button, no extra card */}
                                 <div className="mb-4">
                                     <FollowButton issueId={complaint._id} />
                                 </div>
 
-                                {/* Vote Section */}
                                 <div className="pt-4 border-t">
                                     <h3 className="text-sm font-medium text-gray-600 mb-3">Community Vote</h3>
                                     <VoteButton
@@ -222,8 +343,112 @@ const ComplaintDetails = () => {
                                         onUpdate={fetchComplaintDetails}
                                     />
                                 </div>
+
+                                {/* ---- Added Request Update Button ---- */}
+                                <div className="mt-4 pt-4 border-t">
+                                    <button
+                                        onClick={handleRequestUpdate}
+                                        disabled={requestingUpdate}
+                                        className="w-full px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition disabled:opacity-50"
+                                    >
+                                        {requestingUpdate ? 'Sending...' : 'Request Latest Update'}
+                                    </button>
+                                    {updateRequestMessage && (
+                                        <p className="text-sm text-green-600 mt-2 text-center">{updateRequestMessage}</p>
+                                    )}
+                                </div>
+                                {/* ------------------------------------ */}
+
+                                {/* User Reopen Request Button - only for archived issues and non-admin */}
+                                {complaint.status === 'archived' && !isAdmin && (
+                                    <div className="mt-4 pt-4 border-t">
+                                        <button
+                                            onClick={handleRequestReopen}
+                                            disabled={reopenRequested}
+                                            className={`w-full py-2 rounded font-medium ${reopenRequested
+                                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                : 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                                }`}
+                                        >
+                                            {reopenRequested ? 'Reopen Requested ✓' : '⚠️ Request Reopen'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
+
+                        {/* ADMIN CONTROLS – only when admin and issue NOT archived */}
+                        {isAdmin && adminIssueId && complaint.status !== 'archived' && (
+                            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                                <div className="bg-orange-600 px-6 py-4">
+                                    <h2 className="text-xl font-semibold text-white">Admin Status Control</h2>
+                                </div>
+                                <div className="p-6">
+                                    <select
+                                        value={statusUpdate.status}
+                                        onChange={(e) => setStatusUpdate({ ...statusUpdate, status: e.target.value })}
+                                        className="w-full px-3 py-2 border rounded mb-3 focus:ring-2 focus:ring-orange-500"
+                                    >
+                                        <option value="">Select new status</option>
+                                        <option value="reported">Reported</option>
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="resolved">Resolved</option>
+                                    </select>
+                                    <textarea
+                                        value={statusUpdate.comment}
+                                        onChange={(e) => setStatusUpdate({ ...statusUpdate, comment: e.target.value })}
+                                        placeholder="Comment about this status change..."
+                                        className="w-full px-3 py-2 border rounded mb-3 focus:ring-2 focus:ring-orange-500"
+                                        rows="2"
+                                    />
+                                    <button
+                                        onClick={handleAdminStatusUpdate}
+                                        disabled={updating}
+                                        className="w-full bg-orange-600 text-white py-2 rounded hover:bg-orange-700 disabled:opacity-50"
+                                    >
+                                        {updating ? 'Updating...' : 'Update Status'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ADMIN REACTIVATE BUTTON – only when admin and issue IS archived */}
+                        {isAdmin && adminIssueId && complaint.status === 'archived' && (
+                            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                                <div className="bg-purple-600 px-6 py-4">
+                                    <h2 className="text-xl font-semibold text-white">Archived Issue</h2>
+                                </div>
+                                <div className="p-6">
+                                    <button
+                                        onClick={handleReactivate}
+                                        disabled={updating}
+                                        className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                                    >
+                                        {updating ? 'Processing...' : 'Reactivate Issue'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Status History (for everyone – transparency) */}
+                        {complaint.statusHistory && complaint.statusHistory.length > 0 && (
+                            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                                <div className="bg-gray-100 px-6 py-4">
+                                    <h2 className="text-xl font-semibold text-gray-800">Status History</h2>
+                                </div>
+                                <div className="p-6 max-h-60 overflow-y-auto">
+                                    <ul className="space-y-3">
+                                        {complaint.statusHistory.slice().reverse().map((h, idx) => (
+                                            <li key={idx} className="text-sm border-l-2 border-blue-300 pl-3">
+                                                <span className="font-medium">{formatStatusLabel(h.status)}</span> – {new Date(h.at).toLocaleString()}
+                                                {h.updatedBy && <span className="text-gray-500 text-xs ml-2">by {h.updatedByName || 'Admin'}</span>}
+                                                {h.comment && <div className="text-gray-600 text-xs mt-1">{h.comment}</div>}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Under Review / Duplicate Status */}
                         <div className="bg-white rounded-xl shadow-md overflow-hidden">

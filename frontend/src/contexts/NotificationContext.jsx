@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'; // ✅ added useContext
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
 
 export const NotificationContext = createContext();
 
-// ✅ Define and export the hook
+
 export const useNotifications = () => {
     const context = useContext(NotificationContext);
     if (!context) {

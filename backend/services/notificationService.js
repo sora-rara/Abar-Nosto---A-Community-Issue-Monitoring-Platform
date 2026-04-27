@@ -1,7 +1,7 @@
 const Notification = require('../models/Notification');
 const Follow = require('../models/Follow');
 const NotificationPreference = require('../models/NotificationPreference');
-const Report = require('../models/Report'); // ✅ must be before any function that uses it
+const Report = require('../models/Report');
 
 let io = null;
 function setSocketInstance(socketInstance) { io = socketInstance; }
@@ -32,6 +32,8 @@ async function notifyUser(userId, data) {
             case 'status_change': allowed = prefs.onStatusChange; break;
             case 'new_comment': allowed = prefs.onNewComment; break;
             case 'upvote_received': allowed = prefs.onUpvoteReceived; break;
+            case 'issue_archived': allowed = prefs.onIssueArchived; break;      // ✅ new
+            case 'issue_reactivated': allowed = prefs.onIssueReactivated; break;
         }
         if (!allowed) return null;
     }

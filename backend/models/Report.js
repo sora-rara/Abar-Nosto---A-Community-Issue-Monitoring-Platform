@@ -66,11 +66,22 @@ const reportSchema = new mongoose.Schema({
         thumbnailUrl: String,
         caption: String
     }],
-    status: {
-        type: String,
-        enum: ['reported', 'in_progress', 'resolved'],
-        default: 'reported'
-    },
+    // Add these fields to your existing schema
+    statusHistory: [
+        {
+            status: {
+                type: String,
+                enum: ['reported', 'in_progress', 'resolved', 'archived', 'reopened', 'reopen_requested']
+            },
+            at: { type: Date, default: Date.now },
+            updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            updatedByName: String,
+            comment: String
+        }
+    ],
+    archivedAt: Date,
+    reactivatedAt: Date,
+    reopenRequested: { type: Boolean, default: false },
     reportedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'

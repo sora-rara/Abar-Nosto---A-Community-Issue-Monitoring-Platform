@@ -75,9 +75,12 @@ const Navbar = () => {
         <nav style={{ backgroundColor: '#0F172A' }} className="shadow-lg">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
-                    {/* Logo, Brand and Tagline */}
+                    {/* Logo, Brand and Tagline - admin link updated */}
                     <div className="flex items-center">
-                        <Link to={isLoggedIn ? "/dashboard" : "/login"} className="flex items-center space-x-2">
+                        <Link
+                            to={isLoggedIn ? (isAdmin ? "/admin/issues" : "/dashboard") : "/login"}
+                            className="flex items-center space-x-2"
+                        >
                             <div className="flex flex-col items-start">
                                 <span style={{ color: '#FFA500' }} className="font-bold text-xl leading-tight">Abar Nosto!</span>
                                 <span className="text-xs text-gray-400 leading-tight">A Community Issue Monitoring Platform</span>
@@ -90,16 +93,34 @@ const Navbar = () => {
                         <div className="flex items-center space-x-4">
                             {isLoggedIn ? (
                                 <>
-                                    <Link
-                                        to="/dashboard"
-                                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard')
-                                            ? 'text-white'
-                                            : 'text-gray-300 hover:text-white'
-                                            }`}
-                                        style={isActive('/dashboard') ? { backgroundColor: '#FFA500' } : {}}
-                                    >
-                                        Dashboard
-                                    </Link>
+                                    {/* Dashboard – visible only for non‑admins */}
+                                    {!isAdmin && (
+                                        <Link
+                                            to="/dashboard"
+                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard')
+                                                ? 'text-white'
+                                                : 'text-gray-300 hover:text-white'
+                                                }`}
+                                            style={isActive('/dashboard') ? { backgroundColor: '#FFA500' } : {}}
+                                        >
+                                            Dashboard
+                                        </Link>
+                                    )}
+
+                                    {/* Admin Dashboard – visible only for admins */}
+                                    {isAdmin && (
+                                        <Link
+                                            to="/admin/issues"
+                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/admin/issues')
+                                                ? 'text-white'
+                                                : 'text-gray-300 hover:text-white'
+                                                }`}
+                                            style={isActive('/admin/issues') ? { backgroundColor: '#FFA500' } : {}}
+                                        >
+                                            Admin Dashboard
+                                        </Link>
+                                    )}
+
                                     <Link
                                         to="/create-report"
                                         className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center ${isActive('/create-report')
@@ -110,6 +131,7 @@ const Navbar = () => {
                                     >
                                         Report Issue
                                     </Link>
+
                                     {/* Search Link */}
                                     <Link
                                         to="/search"
@@ -124,6 +146,7 @@ const Navbar = () => {
                                         </svg>
                                         Search
                                     </Link>
+
                                     {/* Map Link */}
                                     <Link
                                         to="/map"
@@ -135,6 +158,33 @@ const Navbar = () => {
                                     >
                                         🗺️ Map
                                     </Link>
+
+                                    {/* Authorities Link – different for admin vs regular user */}
+                                    {!isAdmin && (
+                                        <Link
+                                            to="/authorities"
+                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/authorities')
+                                                ? 'text-white'
+                                                : 'text-gray-300 hover:text-white'
+                                                }`}
+                                            style={isActive('/authorities') ? { backgroundColor: '#FFA500' } : {}}
+                                        >
+                                            📞 Authorities
+                                        </Link>
+                                    )}
+                                    {isAdmin && (
+                                        <Link
+                                            to="/admin/authorities"
+                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/admin/authorities')
+                                                ? 'text-white'
+                                                : 'text-gray-300 hover:text-white'
+                                                }`}
+                                            style={isActive('/admin/authorities') ? { backgroundColor: '#FFA500' } : {}}
+                                        >
+                                            Manage Authorities
+                                        </Link>
+                                    )}
+
                                     {/* Profile Link - Regular users only */}
                                     {!isAdmin && (
                                         <Link
@@ -148,6 +198,7 @@ const Navbar = () => {
                                             Rep. Profile
                                         </Link>
                                     )}
+
                                     {/* Reputation Management Link - Admin only */}
                                     {isAdmin && (
                                         <Link
@@ -161,6 +212,7 @@ const Navbar = () => {
                                             Reputation
                                         </Link>
                                     )}
+
                                     <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-700">
                                         <div className="flex flex-col items-end">
                                             <span className="text-gray-300 text-sm">
@@ -227,7 +279,7 @@ const Navbar = () => {
                 </div>
             </div>
 
-            {/* Mobile menu */}
+            {/* Mobile menu – updated with admin & authorities links */}
             {mobileMenuOpen && (
                 <div className="md:hidden" style={{ backgroundColor: '#0F172A' }}>
                     <div className="px-2 pt-2 pb-3 space-y-1">
@@ -242,17 +294,34 @@ const Navbar = () => {
                                         <UserReputation reputation={userReputation} size="small" />
                                     </div>
                                 )}
-                                <Link
-                                    to="/dashboard"
-                                    className={`block px-3 py-2 rounded-md text-base font-medium ${isActive('/dashboard')
-                                        ? 'text-white'
-                                        : 'text-gray-300 hover:text-white'
-                                        }`}
-                                    style={isActive('/dashboard') ? { backgroundColor: '#FFA500' } : {}}
-                                    onClick={() => setMobileMenuOpen(false)}
-                                >
-                                    Dashboard
-                                </Link>
+                                {/* Dashboard link – non‑admin only */}
+                                {!isAdmin && (
+                                    <Link
+                                        to="/dashboard"
+                                        className={`block px-3 py-2 rounded-md text-base font-medium ${isActive('/dashboard')
+                                            ? 'text-white'
+                                            : 'text-gray-300 hover:text-white'
+                                            }`}
+                                        style={isActive('/dashboard') ? { backgroundColor: '#FFA500' } : {}}
+                                        onClick={() => setMobileMenuOpen(false)}
+                                    >
+                                        Dashboard
+                                    </Link>
+                                )}
+                                {/* Admin Issues link – admin only */}
+                                {isAdmin && (
+                                    <Link
+                                        to="/admin/issues"
+                                        className={`block px-3 py-2 rounded-md text-base font-medium ${isActive('/admin/issues')
+                                            ? 'text-white'
+                                            : 'text-gray-300 hover:text-white'
+                                            }`}
+                                        style={isActive('/admin/issues') ? { backgroundColor: '#FFA500' } : {}}
+                                        onClick={() => setMobileMenuOpen(false)}
+                                    >
+                                        Admin Issues
+                                    </Link>
+                                )}
                                 <Link
                                     to="/create-report"
                                     className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${isActive('/create-report')
@@ -265,7 +334,6 @@ const Navbar = () => {
                                     <span className="mr-2">📸</span>
                                     Report Issue
                                 </Link>
-                                {/* Search Link - Mobile */}
                                 <Link
                                     to="/search"
                                     className={`block px-3 py-2 rounded-md text-base font-medium ${isActive('/search')
@@ -277,7 +345,6 @@ const Navbar = () => {
                                 >
                                     🔍 Search Issues
                                 </Link>
-                                {/* Map Link - Mobile */}
                                 <Link
                                     to="/map"
                                     className={`block px-3 py-2 rounded-md text-base font-medium flex items-center ${isActive('/map')
@@ -290,6 +357,33 @@ const Navbar = () => {
                                     <span className="mr-2">🗺️</span>
                                     City Map
                                 </Link>
+                                {/* Authorities links */}
+                                {!isAdmin && (
+                                    <Link
+                                        to="/authorities"
+                                        className={`block px-3 py-2 rounded-md text-base font-medium ${isActive('/authorities')
+                                            ? 'text-white'
+                                            : 'text-gray-300 hover:text-white'
+                                            }`}
+                                        style={isActive('/authorities') ? { backgroundColor: '#FFA500' } : {}}
+                                        onClick={() => setMobileMenuOpen(false)}
+                                    >
+                                        📞 Authorities Directory
+                                    </Link>
+                                )}
+                                {isAdmin && (
+                                    <Link
+                                        to="/admin/authorities"
+                                        className={`block px-3 py-2 rounded-md text-base font-medium ${isActive('/admin/authorities')
+                                            ? 'text-white'
+                                            : 'text-gray-300 hover:text-white'
+                                            }`}
+                                        style={isActive('/admin/authorities') ? { backgroundColor: '#FFA500' } : {}}
+                                        onClick={() => setMobileMenuOpen(false)}
+                                    >
+                                        Manage Authorities
+                                    </Link>
+                                )}
                                 {/* Profile Link in Mobile Menu - Regular users only */}
                                 {!isAdmin && (
                                     <Link

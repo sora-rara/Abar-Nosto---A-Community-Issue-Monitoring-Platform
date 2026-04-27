@@ -8,6 +8,8 @@ const preferenceSchema = new mongoose.Schema({
     onStatusChange: { type: Boolean, default: true },
     onNewComment: { type: Boolean, default: true },
     onUpvoteReceived: { type: Boolean, default: true },
+    onIssueArchived: { type: Boolean, default: true },
+    onIssueReactivated: { type: Boolean, default: true },
     nearbyRadius: { type: Number, default: 1000 }, // meters
     savedLocation: {
         type: { type: String, enum: ['Point'], default: 'Point' },

@@ -3,22 +3,21 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const mongoose = require('mongoose'); // Add this line
+const mongoose = require('mongoose');
 const adminRoutes = require('./routes/adminRoutes');
 const http = require('http');
 const socketIo = require('socket.io');
 const jwt = require('jsonwebtoken');
-
+const User = require('./models/User');
 
 // Load environment variables FIRST
 dotenv.config();
 
 // Import imagekit AFTER env vars are loaded
-// Import the properly configured imagekit instance from config folder
 let imagekit = null;
 try {
     if (process.env.IMAGEKIT_PUBLIC_KEY && process.env.IMAGEKIT_PRIVATE_KEY && process.env.IMAGEKIT_URL_ENDPOINT) {
-        imagekit = require('./config/imagekit');  // ✅ correct path
+        imagekit = require('./config/imagekit');
         console.log('✅ ImageKit initialized');
     } else {
         console.log('⚠️ ImageKit not configured - missing environment variables');
@@ -27,30 +26,37 @@ try {
     console.error('❌ ImageKit initialization failed:', error.message);
 }
 
-
-
 // Now import other modules
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const issueRoutes = require('./routes/issueRoutes');
-
 const followRoutes = require('./routes/followRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const preferenceRoutes = require('./routes/preferenceRoutes');
-
 const searchRoutes = require('./routes/searchRoutes');
+
+// ========== ADDED: statsRoutes from previous merge ==========
+const statsRoutes = require('./routes/statsRoutes');
+// ===========================================================
+
+// ===== NEW: Routes from second file =====
+const authorityRoutes = require('./routes/authorityRoutes');
+const draftRoutes = require('./routes/draftRoutes');
+const summaryRoutes = require('./routes/summaryRoutes');
+const applicationRoutes = require('./routes/applicationRoutes');
+const govServiceRoutes = require('./routes/govServiceRoutes');
+// =========================================
 
 // Connect to database
 connectDB();
-
 
 const syncExistingReports = async () => {
     try {
         const Report = require('./models/Report');
         const AdminIssue = require('./models/AdminIssue');
 
-        console.log('🔄 Checking for unsynced reports...');
+        console.log('Checking for unsynced reports...');
 
         const allReports = await Report.find().populate('user', 'name email');
         let synced = 0;
@@ -60,7 +66,6 @@ const syncExistingReports = async () => {
             const existing = await AdminIssue.findOne({ originalReportId: report._id });
 
             if (!existing) {
-                // Safely handle location object
                 let locationData = {
                     address: 'Unknown location',
                     lat: 0,
@@ -98,31 +103,138 @@ const syncExistingReports = async () => {
                     updatedAt: report.updatedAt
                 });
                 synced++;
-                console.log(`✅ Auto-synced: ${report.title}`);
+                console.log(`Auto-synced: ${report.title}`);
             } else {
                 skipped++;
             }
         }
 
         if (synced > 0) {
-            console.log(`📊 Auto-sync complete: ${synced} new reports synced, ${skipped} already exist`);
+            console.log(`Auto-sync complete: ${synced} new reports synced, ${skipped} already exist`);
         } else {
-            console.log(`✅ All reports are already synced (${skipped} total)`);
+            console.log(`All reports are already synced (${skipped} total)`);
         }
 
     } catch (error) {
-        console.error('❌ Auto-sync error:', error);
+        console.error('Auto-sync error:', error);
     }
 };
 
+// ========== ADDED: syncAdminActivities from previous merge ==========
+const syncAdminActivities = async () => {
+    try {
+        const AdminActivity = require('./models/AdminActivity');
+        const Activity = require('./models/Activity');
+        const Report = require('./models/Report');
+
+        console.log('🔄 Syncing activities to admin feed...');
+
+        // First, create AdminActivity for reports that don't have one
+        const reports = await Report.find()
+            .populate('user', 'name')
+            .sort('-createdAt')
+            .limit(100);
+
+        let reportSyncCount = 0;
+        for (const report of reports) {
+            try {
+                const exists = await AdminActivity.findOne({
+                    issue: report._id,
+                    type: 'new_issue'
+                });
+                if (!exists) {
+                    await AdminActivity.create({
+                        type: 'new_issue',
+                        issue: report._id,
+                        issueTitle: report.title,
+                        issueCategory: report.category,
+                        user: report.user?._id || report.user,
+                        userName: report.user?.name || report.reporterName || 'Unknown',
+                        content: `New issue reported: ${report.title}`,
+                        priority: 'high',
+                        metadata: {},
+                        createdAt: report.createdAt || new Date()
+                    });
+                    reportSyncCount++;
+                }
+            } catch (err) {
+                // skip errors for individual reports
+            }
+        }
+        if (reportSyncCount > 0) {
+            console.log(`✅ Synced ${reportSyncCount} reports to admin activities`);
+        }
+
+        // Then sync existing Activity entries
+        const existingActivities = await Activity.find()
+            .sort({ createdAt: -1 })
+            .limit(500);
+
+        const validTypes = [
+            'new_issue', 'new_comment', 'status_update', 'issue_resolved',
+            'upvote', 'downvote', 'upvote_removed', 'downvote_removed',
+            'user_registered', 'report_flagged', 'bulk_action',
+            'comment_moderated', 'issue_prioritized', 'user_warning', 'system_alert'
+        ];
+
+        let synced = 0;
+        let skipped = 0;
+
+        for (const activity of existingActivities) {
+            if (!validTypes.includes(activity.type)) {
+                skipped++;
+                continue;
+            }
+
+            try {
+                const exists = await AdminActivity.findOne({
+                    type: activity.type,
+                    issue: activity.issue,
+                    user: activity.user,
+                    createdAt: activity.createdAt
+                });
+
+                if (!exists) {
+                    let priority = 'low';
+                    if (activity.type === 'new_issue' || activity.type === 'issue_resolved') {
+                        priority = 'high';
+                    } else if (activity.type === 'new_comment' || activity.type === 'status_update') {
+                        priority = 'medium';
+                    }
+
+                    await AdminActivity.create({
+                        type: activity.type,
+                        issue: activity.issue,
+                        issueTitle: activity.issueTitle,
+                        issueCategory: activity.issueCategory,
+                        user: activity.user,
+                        userName: activity.userName,
+                        content: activity.content,
+                        priority: priority,
+                        metadata: {},
+                        createdAt: activity.createdAt
+                    });
+                    synced++;
+                } else {
+                    skipped++;
+                }
+            } catch (err) {
+                skipped++;
+            }
+        }
+
+        console.log(`✅ Admin activities sync: ${reportSyncCount} reports, ${synced} activities new, ${skipped} skipped/already exist`);
+    } catch (error) {
+        console.error('❌ Admin activities sync error:', error.message);
+    }
+};
+// ===================================================================
 
 const app = express();
 
-app.locals.imagekit = imagekit;  // make available to routes
+app.locals.imagekit = imagekit;
 
-// ============================================
-// CORS - FIXED FOR EXPRESS 5
-// ============================================
+// CORS
 app.use(cors({
     origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
     credentials: true,
@@ -130,9 +242,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// ============================================
-// MIDDLEWARE
-// ============================================
+// Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -158,12 +268,23 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/issues', issueRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/search', searchRoutes);
-
 app.use('/api/follows', followRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/preferences', preferenceRoutes);
+
+// ========== Existing stats route ==========
+app.use('/api/admin/stats', statsRoutes);
+
+// ===== NEW: Added routes from second file =====
+app.use('/api/authorities', authorityRoutes);
+app.use('/api/drafts', draftRoutes);
+app.use('/api/summary', summaryRoutes);
+app.use('/api/applications', applicationRoutes);
+app.use('/api/gov-services', govServiceRoutes);
+// =============================================
+
 // ============================================
-// TEMPORARY SYNC ROUTE - ADD THIS HERE
+// TEMPORARY SYNC ROUTE - KEEP EXACTLY AS IS
 // ============================================
 const { protect, admin } = require('./middleware/authMiddleware');
 const Report = require('./models/Report');
@@ -171,7 +292,7 @@ const AdminIssue = require('./models/AdminIssue');
 
 app.post('/api/admin/sync', protect, admin, async (req, res) => {
     try {
-        console.log('🔄 Starting admin sync...');
+        console.log('Starting admin sync...');
         const reports = await Report.find().populate('user', 'name email');
         let synced = 0;
         let skipped = 0;
@@ -213,19 +334,17 @@ app.post('/api/admin/sync', protect, admin, async (req, res) => {
             }
         }
 
-        console.log(`✅ Sync completed: ${synced} synced, ${skipped} skipped, ${errors} errors`);
+        console.log(`Sync completed: ${synced} synced, ${skipped} skipped, ${errors} errors`);
         res.json({
             success: true,
             message: 'Sync completed',
             data: { synced, skipped, errors, total: reports.length }
         });
     } catch (error) {
-        console.error('❌ Sync error:', error);
+        console.error('Sync error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
-
-
 
 // ============================================
 // TEST ROUTES
@@ -267,28 +386,37 @@ const server = http.createServer(app);
 const io = socketIo(server, {
     cors: { origin: ['http://localhost:5173', 'http://localhost:5174'], credentials: true }
 });
+app.set('io', io);
 
-// Socket auth middleware
-io.use((socket, next) => {
+// Socket auth middleware (keep original first‑file logic)
+io.use(async (socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) return next(new Error('Authentication error'));
-    jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production', (err, decoded) => {
-        if (err) return next(new Error('Authentication error'));
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+        const user = await User.findById(decoded.id).select('role');
+        if (!user) return next(new Error('User not found'));
         socket.userId = decoded.id;
+        socket.userRole = user.role;
         next();
-    });
+    } catch (err) {
+        next(new Error('Authentication error'));
+    }
 });
 
 io.on('connection', (socket) => {
     console.log('User connected:', socket.userId);
     socket.join(`user_${socket.userId}`);
+    if (socket.userRole === 'admin') {
+        socket.join('admins');
+    }
     socket.on('disconnect', () => console.log('User disconnected'));
 });
 
 // 🔔 NEW: inject socket instance into notification service
 const { setSocketInstance } = require('./services/notificationService');
 setSocketInstance(io);
-
 
 // ============================================
 // ERROR HANDLING
@@ -326,8 +454,10 @@ server.listen(PORT, () => {
 
 setTimeout(() => {
     syncExistingReports();
+    // ========== ADDED: call to admin activity sync ==========
+    syncAdminActivities();
+    // ========================================================
 }, 3000);
-
 
 // Handle unhandled rejections
 process.on('unhandledRejection', (err) => {
@@ -343,6 +473,7 @@ process.on('uncaughtException', (err) => {
     process.exit(1);
 });
 
+// Existing duplicate test listener – left intact as requested
 io.on('connection', (socket) => {
     socket.on('test', (data) => {
         io.to(`user_${socket.userId}`).emit('notification', { title: 'Test', message: 'Works!' });
