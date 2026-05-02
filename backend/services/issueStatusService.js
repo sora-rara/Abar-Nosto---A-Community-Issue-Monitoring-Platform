@@ -7,10 +7,14 @@ const { notifyFollowers, notifyAuthor } = require('./notificationService');
 
 function getExpectedPreviousStatus(newStatus) {
     const transitions = {
-        archived: ['resolved'],
-        reported: ['archived'],   // reactivation only from archived
-        in_progress: ['reported'],
-        resolved: ['in_progress']
+        // Admins can archive from any active state
+        archived: ['reported', 'in_progress', 'resolved'],
+        // Reactivation only from archived
+        reported: ['archived'],
+        // Can move to in_progress from reported or resolved (e.g. re-opened work)
+        in_progress: ['reported', 'resolved'],
+        // Can resolve from in_progress or reported (e.g. quick fix)
+        resolved: ['in_progress', 'reported']
     };
     return transitions[newStatus] || [];
 }
@@ -24,11 +28,24 @@ async function updateIssueStatus(reportId, newStatus, userId, userName, comment 
 
     try {
         const expectedPrev = getExpectedPreviousStatus(newStatus);
-        const report = await Report.findOne({
-            _id: reportId,
-            status: { $in: expectedPrev }
-        }).session(session);
-        if (!report) throw new Error('Issue not found or invalid state transition');
+
+        // First, find the report by ID regardless of status
+        let report = await Report.findById(reportId).session(session);
+        if (!report) throw new Error('Issue not found');
+
+        // Check if the AdminIssue exists and use it to resolve sync mismatches
+        const adminIssue = await AdminIssue.findOne({ originalReportId: reportId }).session(session);
+
+        // If report status doesn't match expected previous state, check if AdminIssue has the right status
+        if (!expectedPrev.includes(report.status)) {
+            // If AdminIssue status IS a valid previous state, sync the report to match
+            if (adminIssue && expectedPrev.includes(adminIssue.status)) {
+                console.log(`⚠️ Status sync: Report has '${report.status}' but AdminIssue has '${adminIssue.status}'. Syncing report to match AdminIssue before transition.`);
+                report.status = adminIssue.status;
+            } else {
+                throw new Error(`Invalid state transition: cannot move from '${report.status}' to '${newStatus}'`);
+            }
+        }
 
         const oldStatus = report.status;
         report.status = newStatus;
@@ -56,7 +73,6 @@ async function updateIssueStatus(reportId, newStatus, userId, userName, comment 
 
         await report.save({ session });
 
-        const adminIssue = await AdminIssue.findOne({ originalReportId: reportId }).session(session);
         if (adminIssue) {
             adminIssue.status = newStatus;
             adminIssue.statusHistory.push({

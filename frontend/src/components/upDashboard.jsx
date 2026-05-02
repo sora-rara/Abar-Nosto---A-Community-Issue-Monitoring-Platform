@@ -24,7 +24,7 @@ const UpDashboard = () => {
         category: 'all',
         status: 'all',
         sort: 'recent',
-        ward: 'all', 
+        ward: 'all',
         area: 'all'
     });
 
@@ -61,7 +61,7 @@ const UpDashboard = () => {
                 if (targetElement) {
                     // Scroll smoothly to the issue and put it in the center of the screen
                     targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    
+
                     // Optional: remove the highlight effect after 5 seconds
                     setTimeout(() => setHighlightId(null), 5000);
                 }
@@ -89,7 +89,11 @@ const UpDashboard = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            let processedIssues = response.data;
+            let processedIssues = Array.isArray(response.data.data)
+                ? response.data.data
+                : Array.isArray(response.data)
+                    ? response.data
+                    : [];
 
             // ====================================================
             // 2. FRONTEND WARD & AREA FILTER (The "Mirpur 14" Fix)
@@ -167,8 +171,8 @@ const UpDashboard = () => {
         .sort((a, b) => parseInt(a) - parseInt(b));
 
     // 2. Get the specific areas for the currently selected ward
-    const availableAreas = filters.ward === 'all' 
-        ? [] 
+    const availableAreas = filters.ward === 'all'
+        ? []
         : dhakaData
             .filter(item => item.ward === filters.ward)
             .map(item => item.area_name.en);
@@ -303,14 +307,13 @@ const UpDashboard = () => {
                             <div className="flex flex-col gap-4">
                                 {issues.map(issue => (
                                     /* NEW: Wrapper div adds the ID and the orange glowing border if highlighted */
-                                    <div 
+                                    <div
                                         key={issue._id}
                                         id={`issue-${issue._id}`}
-                                        className={`transition-all duration-1000 ${
-                                            highlightId === issue._id 
-                                            ? 'ring-4 ring-orange-500 shadow-2xl scale-[1.01] rounded-xl z-10 relative bg-orange-50/20' 
-                                            : ''
-                                        }`}
+                                        className={`transition-all duration-1000 ${highlightId === issue._id
+                                                ? 'ring-4 ring-orange-500 shadow-2xl scale-[1.01] rounded-xl z-10 relative bg-orange-50/20'
+                                                : ''
+                                            }`}
                                     >
                                         <IssueCard
                                             issue={{

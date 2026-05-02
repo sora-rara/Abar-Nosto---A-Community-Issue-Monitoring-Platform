@@ -15,7 +15,7 @@ const dhakaCenter = [23.8103, 90.4125];
 const MapPage = () => {
     const navigate = useNavigate();
     const [geoJsonData, setGeoJsonData] = useState(null);
-    const [issues, setIssues] = useState([]); 
+    const [issues, setIssues] = useState([]);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -23,7 +23,7 @@ const MapPage = () => {
             navigate('/login');
             return;
         }
-        
+
         fetch('/dhaka-borders.json')
             .then(res => res.json())
             .then(data => setGeoJsonData(data))
@@ -34,15 +34,17 @@ const MapPage = () => {
 
     const fetchIssues = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/issues?exclude_resolved=true');
-            if (Array.isArray(response.data)) {
-                // 🛑 ABSOLUTE FRONTEND FILTER: Forcefully remove any 'resolved' issues
-                const activeIssues = response.data.filter(issue => issue.status !== 'resolved');
-                setIssues(activeIssues);
-            } else {
-                console.error("Backend did not send an array:", response.data);
-                setIssues([]);
-            }
+            const token = localStorage.getItem('token');
+            const response = await axios.get('http://localhost:5000/api/issues?exclude_resolved=true', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const raw = Array.isArray(response.data.data)
+                ? response.data.data
+                : Array.isArray(response.data)
+                    ? response.data
+                    : [];
+            // Extra safety: strip any resolved/archived that slipped through
+            setIssues(raw.filter(issue => issue.status !== 'resolved' && issue.status !== 'archived'));
         } catch (error) {
             console.error("Error fetching issues:", error);
             setIssues([]);
@@ -58,21 +60,21 @@ const MapPage = () => {
     const getIconForType = (type) => {
         if (type === 'accident') return iconAccident;
         if (type === 'disaster') return iconDisaster;
-        return iconRoad; 
+        return iconRoad;
     };
 
     const trendingIssues = [...issues]
         .sort((a, b) => (b.upvoteCount || 0) - (a.upvoteCount || 0))
         .slice(0, 3);
 
-// Group issues by identical address (Fixes the precise map-click variation issue)
+    // Group issues by identical address (Fixes the precise map-click variation issue)
     const groupedIssues = issues.reduce((acc, issue) => {
         // Check if location and address exist
         if (!issue.location || !issue.location.address) return acc;
-        
+
         // Create a unique key based on the EXACT text address instead of numbers
         const key = issue.location.address;
-        
+
         if (!acc[key]) {
             acc[key] = [];
         }
@@ -83,7 +85,7 @@ const MapPage = () => {
     return (
         <div className="flex flex-col min-h-screen bg-gray-100">
             <div className="flex flex-grow overflow-hidden relative">
-                
+
                 {/* SIDEBAR */}
                 <aside className="w-80 bg-slate-800 text-white flex flex-col shadow-lg z-10">
                     <div className="p-5 border-b border-slate-600 flex-shrink-0">
@@ -120,8 +122,8 @@ const MapPage = () => {
                                             <h3 className="font-bold capitalize text-blue-300 text-sm truncate">{issue.type} Issue</h3>
                                         </div>
                                         <p className="text-xs text-gray-300 line-clamp-2">{issue.description}</p>
-                                        <Link 
-                                            to={`/dashboard?highlight=${issue._id}`} 
+                                        <Link
+                                            to={`/dashboard?highlight=${issue._id}`}
                                             className="text-[10px] text-orange-400 hover:text-orange-300 mt-2 inline-block font-semibold"
                                         >
                                             View in Dashboard →
@@ -138,8 +140,8 @@ const MapPage = () => {
                                 <p className="text-center text-gray-400">No issues reported yet.</p>
                             ) : (
                                 issues.map((issue) => {
-                                    if (!issue.location) return null; 
-                                    
+                                    if (!issue.location) return null;
+
                                     return (
                                         <div key={issue._id || Math.random()} className="bg-slate-700 p-4 rounded-lg shadow-md border border-slate-600">
                                             <div className="flex items-center gap-2 mb-2">
@@ -147,11 +149,11 @@ const MapPage = () => {
                                                 <h3 className="font-bold capitalize text-blue-300">{issue.type} Issue</h3>
                                             </div>
                                             <p className="text-sm text-gray-200">{issue.description}</p>
-                                            
+
                                             {issue.image && (
-                                                <img 
-                                                    src={`http://localhost:5000${issue.image}`} 
-                                                    alt="Issue" 
+                                                <img
+                                                    src={`http://localhost:5000${issue.image}`}
+                                                    alt="Issue"
                                                     className="w-full h-32 object-cover rounded mt-3 border border-slate-500"
                                                 />
                                             )}
@@ -168,20 +170,20 @@ const MapPage = () => {
                 <main className="flex-grow relative z-0">
                     <MapContainer center={dhakaCenter} zoom={11} className="w-full h-full">
                         <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                        
+
                         {geoJsonData && <GeoJSON data={geoJsonData} style={{ color: "#2563EB", weight: 2, fillOpacity: 0.1 }} />}
 
                         {Object.values(groupedIssues).map((group) => {
                             // We use the first issue in the group to determine the coordinate and icon
                             const firstIssue = group[0];
-                            
+
                             // Create a unique key for the marker
                             const markerKey = `group-${firstIssue.location.lat}-${firstIssue.location.lng}`;
 
                             return (
-                                <Marker 
-                                    key={markerKey} 
-                                    position={[firstIssue.location.lat, firstIssue.location.lng]} 
+                                <Marker
+                                    key={markerKey}
+                                    position={[firstIssue.location.lat, firstIssue.location.lng]}
                                     icon={getIconForType(firstIssue.type)}
                                 >
                                     <Popup>
@@ -195,7 +197,7 @@ const MapPage = () => {
                                                     {firstIssue.location.address}
                                                 </div>
                                             </div>
-                                            
+
                                             {/* List out every issue at this location */}
                                             <div className="flex flex-col gap-3">
                                                 {group.map((issue) => (
@@ -207,8 +209,8 @@ const MapPage = () => {
                                                         <p className="text-xs text-gray-600 mt-1 line-clamp-2">
                                                             {issue.description}
                                                         </p>
-                                                        <Link 
-                                                            to={`/dashboard?highlight=${issue._id}`} 
+                                                        <Link
+                                                            to={`/dashboard?highlight=${issue._id}`}
                                                             className="mt-2 block w-full py-1 bg-orange-500 text-white text-[10px] uppercase tracking-wider font-bold rounded hover:bg-orange-600 text-center transition-colors"
                                                         >
                                                             View in Dashboard

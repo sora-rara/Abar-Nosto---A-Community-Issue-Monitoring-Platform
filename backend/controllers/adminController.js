@@ -270,32 +270,33 @@ exports.publishFinalUpdate = async (req, res) => {
 
 exports.getStats = async (req, res) => {
     try {
+        // Use Report as single source of truth so stats match the user dashboard
         const stats = {
-            total: await AdminIssue.countDocuments(),
-            reported: await AdminIssue.countDocuments({ status: 'reported' }),
-            inProgress: await AdminIssue.countDocuments({ status: 'in_progress' }),
-            resolved: await AdminIssue.countDocuments({ status: 'resolved' }),
-            archived: await AdminIssue.countDocuments({ status: 'archived' }),   // ✅ added
+            total: await Report.countDocuments(),
+            reported: await Report.countDocuments({ status: 'reported' }),
+            inProgress: await Report.countDocuments({ status: 'in_progress' }),
+            resolved: await Report.countDocuments({ status: 'resolved' }),
+            archived: await Report.countDocuments({ status: 'archived' }),
 
             byCategory: {
-                pothole: await AdminIssue.countDocuments({ category: 'pothole' }),
-                broken_light: await AdminIssue.countDocuments({ category: 'broken_light' }),
-                drainage: await AdminIssue.countDocuments({ category: 'drainage' }),
-                flooding: await AdminIssue.countDocuments({ category: 'flooding' }),
-                garbage: await AdminIssue.countDocuments({ category: 'garbage' }),
-                debris: await AdminIssue.countDocuments({ category: 'debris' }),
-                hazard: await AdminIssue.countDocuments({ category: 'hazard' }),
-                other: await AdminIssue.countDocuments({ category: 'other' })
+                pothole: await Report.countDocuments({ category: 'pothole' }),
+                broken_light: await Report.countDocuments({ category: 'broken_light' }),
+                drainage: await Report.countDocuments({ category: 'drainage' }),
+                flooding: await Report.countDocuments({ category: 'flooding' }),
+                garbage: await Report.countDocuments({ category: 'garbage' }),
+                debris: await Report.countDocuments({ category: 'debris' }),
+                hazard: await Report.countDocuments({ category: 'hazard' }),
+                other: await Report.countDocuments({ category: 'other' })
             },
 
             totalUsers: await User.countDocuments(),
             adminUsers: await User.countDocuments({ role: 'admin' }),
 
             recentActivity: {
-                last7Days: await AdminIssue.countDocuments({
+                last7Days: await Report.countDocuments({
                     createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
                 }),
-                resolvedLast7Days: await AdminIssue.countDocuments({
+                resolvedLast7Days: await Report.countDocuments({
                     status: 'resolved',
                     updatedAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
                 })
@@ -402,8 +403,17 @@ exports.archiveIssue = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Original report not found' });
         }
 
-        if (report.status !== 'resolved') {
-            return res.status(400).json({ success: false, message: 'Only resolved issues can be archived' });
+        // Trust adminIssue.status as the source of truth (same approach as reactivateIssue)
+        const activeStatuses = ['reported', 'in_progress', 'resolved'];
+        if (!activeStatuses.includes(adminIssue.status)) {
+            return res.status(400).json({ success: false, message: 'Only active issues can be archived' });
+        }
+
+        // Sync report status to match adminIssue if out of sync
+        if (report.status !== adminIssue.status) {
+            console.log(`⚠️ Sync before archive: Report has '${report.status}', AdminIssue has '${adminIssue.status}'. Syncing.`);
+            report.status = adminIssue.status;
+            await report.save();
         }
 
         await updateIssueStatus(report._id, 'archived', req.user.id, req.user.name, comment || 'Archived by admin');

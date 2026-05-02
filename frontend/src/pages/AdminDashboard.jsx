@@ -47,20 +47,21 @@ const AdminDashboard = () => {
 
         setUser(currentUser);
         fetchStats();
+        fetchIssues();
     }, [navigate]);
 
     useEffect(() => {
         if (user) {
-            fetchIssues();
+            fetchIssues(showArchived);
         }
     }, [filters.status, filters.category, showArchived]);
 
-    const fetchIssues = async () => {
+    const fetchIssues = async (archivedOverride = showArchived) => {
         try {
             const token = authService.getToken();
             const params = new URLSearchParams();
 
-            if (showArchived) {
+            if (archivedOverride) {
                 params.append('status', 'archived');
             } else if (filters.status !== 'all') {
                 params.append('status', filters.status);
@@ -189,7 +190,7 @@ const AdminDashboard = () => {
                 headers: { Authorization: `Bearer ${token}` },
                 responseType: 'blob' // Tells Axios we are downloading a file
             });
-            
+
             // Create a temporary link to download the file
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const a = document.createElement('a');
@@ -231,7 +232,7 @@ const AdminDashboard = () => {
         if (!window.confirm(`Archive issue "${issue.title}"? It will be hidden from the active dashboard.`)) return;
         try {
             const token = authService.getToken();
-            await axios.patch(`/api/admin/issues/${issue._id}/archive`, {}, {
+            await axios.patch(`http://localhost:5000/api/admin/issues/${issue._id}/archive`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             alert('Issue archived');
@@ -246,7 +247,7 @@ const AdminDashboard = () => {
         if (!window.confirm(`Reactivate issue "${issue.title}"? It will reappear on the active dashboard.`)) return;
         try {
             const token = authService.getToken();
-            await axios.patch(`/api/admin/issues/${issue._id}/reactivate`, {}, {
+            await axios.patch(`http://localhost:5000/api/admin/issues/${issue._id}/reactivate`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             alert('Issue reactivated');

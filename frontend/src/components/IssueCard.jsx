@@ -50,23 +50,23 @@ const IssueCard = ({ issue, onUpdate }) => {
 
     const getCategoryDetails = (category) => {
         const categories = {
-            pothole: { color: 'bg-red-100 text-red-800', icon: '🕳️', label: 'Pothole' },
-            broken_light: { color: 'bg-yellow-100 text-yellow-800', icon: '💡', label: 'Broken Light' },
-            drainage: { color: 'bg-blue-100 text-blue-800', icon: '🌊', label: 'Drainage' },
-            flooding: { color: 'bg-indigo-100 text-indigo-800', icon: '💧', label: 'Flooding' },
-            garbage: { color: 'bg-green-100 text-green-800', icon: '🗑️', label: 'Garbage' },
-            debris: { color: 'bg-orange-100 text-orange-800', icon: '🌿', label: 'Debris' },
-            other: { color: 'bg-gray-100 text-gray-800', icon: '📌', label: 'Other' }
+            pothole: { color: 'bg-red-100 text-red-800', label: 'Pothole' },
+            broken_light: { color: 'bg-yellow-100 text-yellow-800', label: 'Broken Light' },
+            drainage: { color: 'bg-blue-100 text-blue-800', label: 'Drainage' },
+            flooding: { color: 'bg-indigo-100 text-indigo-800', label: 'Flooding' },
+            garbage: { color: 'bg-green-100 text-green-800', label: 'Garbage' },
+            debris: { color: 'bg-orange-100 text-orange-800', label: 'Debris' },
+            other: { color: 'bg-gray-100 text-gray-800', label: 'Other' }
         };
         return categories[category] || categories.other;
     };
 
     const getStatusDetails = (status) => {
         const statuses = {
-            reported: { color: 'bg-red-500', label: 'Reported', icon: '🆕' },
-            in_progress: { color: 'bg-yellow-500', label: 'In Progress', icon: '🔄' },
-            resolved: { color: 'bg-green-500', label: 'Resolved', icon: '✅' },
-            archived: { color: 'bg-gray-500', label: 'Archived', icon: '📦' }
+            reported: { color: 'bg-red-500', label: 'Reported' },
+            in_progress: { color: 'bg-yellow-500', label: 'In Progress' },
+            resolved: { color: 'bg-green-500', label: 'Resolved' },
+            archived: { color: 'bg-gray-500', label: 'Archived' }
         };
         return statuses[status] || statuses.reported;
     };
@@ -114,7 +114,6 @@ const IssueCard = ({ issue, onUpdate }) => {
                         </h3>
                         <div className="flex items-center space-x-3">
                             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${category.color}`}>
-                                <span className="mr-1">{category.icon}</span>
                                 {category.label}
                             </span>
                             <span className="text-sm text-gray-500">
@@ -125,7 +124,7 @@ const IssueCard = ({ issue, onUpdate }) => {
 
                     {/* Status Badge */}
                     <div className={`px-3 py-1 rounded-full text-sm font-medium text-white ${status.color}`}>
-                        <span className="mr-1">{status.icon}</span>
+
                         {status.label}
                     </div>
                 </div>
@@ -170,7 +169,7 @@ const IssueCard = ({ issue, onUpdate }) => {
 
                 {/* Action Bar */}
                 <div className="flex items-center justify-between pt-4 border-t">
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-stretch space-x-4">
                         {/* Vote Button */}
                         <VoteButton
                             issueId={issue._id}
@@ -183,7 +182,7 @@ const IssueCard = ({ issue, onUpdate }) => {
                         {/* Comments Button */}
                         <button
                             onClick={() => setShowComments(!showComments)}
-                            className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-blue-600 transition rounded-lg hover:bg-blue-50"
+                            className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-[#1B2D57] transition rounded-lg hover:bg-blue-50"
                         >
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -195,7 +194,7 @@ const IssueCard = ({ issue, onUpdate }) => {
                         {/* Share Button */}
                         <button
                             onClick={() => setShowShareModal(true)}
-                            className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-blue-600 transition rounded-lg hover:bg-blue-50"
+                            className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-[#1B2D57] transition rounded-lg hover:bg-blue-50"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -210,7 +209,7 @@ const IssueCard = ({ issue, onUpdate }) => {
                     {/* View Details Link */}
                     <Link
                         to={`/complaint/${issue._id}`}
-                        className="text-blue-600 hover:text-blue-800 font-medium flex items-center space-x-1"
+                        className="text-[#0F172A] hover:text-blue-900 font-medium flex items-center space-x-1"
                     >
                         <span>View Details</span>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -65,7 +65,7 @@ function Login() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: '#0F172A',
             padding: '20px',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
         }}>
@@ -75,13 +75,13 @@ function Login() {
                 backgroundColor: 'white',
                 borderRadius: '20px',
                 padding: '40px',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+                boxShadow: '#FFA500'
             }}>
                 <div style={{ textAlign: 'center', marginBottom: '30px' }}>
                     <h1 style={{
                         fontSize: '32px',
                         fontWeight: 'bold',
-                        color: '#667eea',
+                        color: '#FFA500',
                         marginBottom: '8px'
                     }}>
                         Abar Nosto
@@ -127,7 +127,7 @@ function Login() {
                             display: 'block',
                             fontSize: '14px',
                             fontWeight: '500',
-                            color: '#333',
+                            color: '#FFA500',
                             marginBottom: '5px'
                         }}>
                             Email address
@@ -155,7 +155,7 @@ function Login() {
                             display: 'block',
                             fontSize: '14px',
                             fontWeight: '500',
-                            color: '#333',
+                            color: '#FFA500',
                             marginBottom: '5px'
                         }}>
                             Password
@@ -184,7 +184,7 @@ function Login() {
                         style={{
                             width: '100%',
                             padding: '14px',
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            background: '#FFA500',
                             color: 'white',
                             border: 'none',
                             borderRadius: '10px',
@@ -209,7 +209,7 @@ function Login() {
                         <Link
                             to="/register"
                             style={{
-                                color: '#667eea',
+                                color: '#FFA500',
                                 textDecoration: 'none',
                                 fontWeight: '600'
                             }}

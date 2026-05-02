@@ -100,6 +100,7 @@ exports.createReport = async (req, res) => {
             'location.lat': { $gte: lat - latDelta, $lte: lat + latDelta },
             'location.lng': { $gte: lng - lngDelta, $lte: lng + lngDelta },
             category: category,
+            status: { $in: ['reported', 'in_progress'] },
             createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
         })
             .populate('user', 'name')
@@ -333,6 +334,7 @@ exports.checkDuplicate = async (req, res) => {
             'location.lat': { $gte: parseFloat(lat) - latDelta, $lte: parseFloat(lat) + latDelta },
             'location.lng': { $gte: parseFloat(lng) - lngDelta, $lte: parseFloat(lng) + lngDelta },
             category: category,
+            status: { $in: ['reported', 'in_progress'] },
             createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
         })
             .populate('user', 'name')

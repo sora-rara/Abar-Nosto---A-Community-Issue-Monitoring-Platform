@@ -10,6 +10,7 @@ import ShareModal from '../components/ShareModal';
 import useDraft from '../hooks/useDraft';
 import AutoSave from '../components/AutoSave';
 import DraftReminder from '../components/DraftReminder';
+import SimilarIssuesCard from '../components/SimilarIssuesCard';
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -56,6 +57,9 @@ const CreateReport = () => {
     const captchaRef = useRef(null);
 
     const [submitting, setSubmitting] = useState(false);
+    const [pendingDuplicates, setPendingDuplicates] = useState([]);
+    const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+    const [pendingFormData, setPendingFormData] = useState(null);
     const [location, setLocation] = useState(null);
     const [locationError, setLocationError] = useState('');
     const [locationLoading, setLocationLoading] = useState(true);
@@ -279,8 +283,15 @@ const CreateReport = () => {
         getCurrentLocation(true);
     }, []);
 
+    // Re-fetch nearby issues filtered by the newly selected category
+    useEffect(() => {
+        if (location && formData.category) {
+            fetchNearbyIssues(location.lat, location.lng, formData.category);
+        }
+    }, [formData.category]);
+
     // Fetch nearby issues from backend
-    const fetchNearbyIssues = async (lat, lng) => {
+    const fetchNearbyIssues = async (lat, lng, category = formData.category) => {
         if (!lat || !lng) return;
 
         setLoadingNearby(true);
@@ -291,24 +302,23 @@ const CreateReport = () => {
                 return;
             }
 
-            const response = await axios.get(
-                `http://localhost:5000/api/reports/nearby?lat=${lat}&lng=${lng}&radius=500`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                }
-            );
+            // Build URL — include category if one is selected so backend filters it
+            let url = `http://localhost:5000/api/reports/nearby?lat=${lat}&lng=${lng}&radius=500`;
+            if (category) url += `&category=${category}`;
 
-            const issuesWithDistance = (response.data.reports || []).map(report => ({
-                ...report,
-                distance: calculateDistance(
-                    lat,
-                    lng,
-                    report.location.lat,
-                    report.location.lng
-                )
-            })).sort((a, b) => a.distance - b.distance);
+            const response = await axios.get(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            const RADIUS_M = 500;
+            const issuesWithDistance = (response.data.reports || [])
+                .map(report => ({
+                    ...report,
+                    distance: calculateDistance(lat, lng, report.location.lat, report.location.lng)
+                }))
+                // Post-filter: bounding box can return corner points up to ~580m away; trim to true circle
+                .filter(report => report.distance <= RADIUS_M)
+                .sort((a, b) => a.distance - b.distance);
 
             setNearbyIssues(issuesWithDistance);
 
@@ -336,9 +346,9 @@ const CreateReport = () => {
     };
 
     // Handle view all nearby issues
-    const handleViewAllNearby = () => {
-        console.log('View all nearby issues:', nearbyIssues);
-        alert(`Found ${nearbyIssues.length} nearby issues`);
+    // Handle view details for a nearby issue — navigates to the complaint details page
+    const handleViewDetails = (issueId) => {
+        navigate(`/complaint/${issueId}`);
     };
 
     // Handle file drop
@@ -392,26 +402,36 @@ const CreateReport = () => {
         setCaptchaToken(null);
     };
 
+    // Shared logic that actually POSTs the report — called either directly or after duplicate confirmation
+    const doSubmit = async (formDataToSend, token) => {
+        const response = await axios.post(
+            'http://localhost:5000/api/reports',
+            formDataToSend,
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            }
+        );
+
+        if (response.data.success) {
+            setSubmittedReport(response.data.report);
+            clearDraft();
+            resetCaptcha();
+            window.scrollTo(0, 0);
+        } else {
+            throw new Error(response.data.error || 'Failed to submit report');
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Validation checks
-        if (!formData.title.trim()) {
-            alert('Please enter a title');
-            return;
-        }
-        if (!formData.description.trim()) {
-            alert('Please enter a description');
-            return;
-        }
-        if (!formData.category) {
-            alert('Please select a category');
-            return;
-        }
-        if (!location) {
-            alert('Location not detected. Please enable GPS and try again.');
-            return;
-        }
+        if (!formData.title.trim()) { alert('Please enter a title'); return; }
+        if (!formData.description.trim()) { alert('Please enter a description'); return; }
+        if (!formData.category) { alert('Please select a category'); return; }
+        if (!location) { alert('Location not detected. Please enable GPS and try again.'); return; }
         if (!captchaToken) {
             setCaptchaError('Please complete the CAPTCHA verification');
             alert('Please complete the CAPTCHA verification');
@@ -422,10 +442,7 @@ const CreateReport = () => {
 
         try {
             const token = localStorage.getItem('token');
-            if (!token) {
-                navigate('/login');
-                return;
-            }
+            if (!token) { navigate('/login'); return; }
 
             const formDataToSend = new FormData();
             formDataToSend.append('title', formData.title.trim());
@@ -436,53 +453,68 @@ const CreateReport = () => {
                 lng: location.lng,
                 address: formData.address
             }));
-
-            // Add captcha token to form data
             formDataToSend.append('captchaToken', captchaToken);
+            photos.forEach(photo => formDataToSend.append('photos', photo));
 
-            photos.forEach(photo => {
-                formDataToSend.append('photos', photo);
-            });
-
-            const response = await axios.post(
-                'http://localhost:5000/api/reports',
-                formDataToSend,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'multipart/form-data'
-                    }
-                }
+            // Check for active duplicates before submitting
+            const dupCheck = await axios.post(
+                'http://localhost:5000/api/reports/check-duplicate',
+                { lat: location.lat, lng: location.lng, category: formData.category },
+                { headers: { 'Authorization': `Bearer ${token}` } }
             );
 
-            if (response.data.success) {
-                setSubmittedReport(response.data.report);
-                // Clear draft after successful submission
-                clearDraft();
-                // Reset captcha
-                resetCaptcha();
-                // Scroll to top to show share section
-                window.scrollTo(0, 0);
-            } else {
-                throw new Error(response.data.error || 'Failed to submit report');
+            if (dupCheck.data.hasDuplicates) {
+                // Store form data and duplicates, show warning modal — don't submit yet
+                setPendingFormData({ formDataToSend, token });
+                setPendingDuplicates(
+                    (dupCheck.data.duplicates || []).map(d => ({
+                        ...d,
+                        distance: calculateDistance(location.lat, location.lng, d.location.lat, d.location.lng)
+                    })).sort((a, b) => a.distance - b.distance)
+                );
+                setShowDuplicateWarning(true);
+                setSubmitting(false);
+                return;
             }
+
+            await doSubmit(formDataToSend, token);
 
         } catch (error) {
             console.error('Submission error:', error);
-
-            // Handle captcha specific errors
             if (error.response?.data?.error?.includes('CAPTCHA')) {
                 setCaptchaError(error.response.data.error);
-                resetCaptcha(); // Reset captcha on error
+                resetCaptcha();
                 alert(error.response.data.error);
             } else {
                 alert(error.response?.data?.message || error.message || 'Failed to submit report');
             }
-
-            // Reset captcha on any error to force new verification
             resetCaptcha();
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Called when the user clicks "Submit Anyway" in the duplicate warning modal
+    const handleConfirmSubmit = async () => {
+        if (!pendingFormData) return;
+        setShowDuplicateWarning(false);
+        setSubmitting(true);
+        try {
+            await doSubmit(pendingFormData.formDataToSend, pendingFormData.token);
+        } catch (error) {
+            console.error('Submission error:', error);
+            if (error.response?.data?.error?.includes('CAPTCHA')) {
+                setCaptchaError(error.response.data.error);
+                resetCaptcha();
+                alert(error.response.data.error);
+            } else {
+                alert(error.response?.data?.message || error.message || 'Failed to submit report');
+            }
+            resetCaptcha();
+        } finally {
+            setSubmitting(false);
+            setPendingFormData(null);
+            setPendingDuplicates([]);
         }
     };
 
@@ -539,16 +571,16 @@ const CreateReport = () => {
                     {/* Success Card (unchanged) */}
                     <div className="bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-500">
                         {/* Animated Success Header */}
-                        <div className="relative bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-8 text-center">
+                        <div className="relative bg-gradient-to-r from-[#EE6B07] to-[#FFA500] px-6 py-8 text-center">
                             <div className="absolute inset-0 bg-white/10"></div>
                             <div className="relative">
                                 <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                                    <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-10 h-10 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                                     </svg>
                                 </div>
                                 <h2 className="text-2xl font-bold text-white mb-2">Report Submitted Successfully!</h2>
-                                <p className="text-green-100">
+                                <p className="text-white">
                                     Your issue has been reported and is now visible to the community.
                                 </p>
                             </div>
@@ -558,8 +590,8 @@ const CreateReport = () => {
                             {/* Report Summary Card */}
                             <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 mb-6 border border-gray-200">
                                 <div className="flex items-start gap-3">
-                                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <svg className="w-6 h-6 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                     </div>
@@ -570,8 +602,8 @@ const CreateReport = () => {
                                     </div>
                                     <div className="text-right">
                                         <p className="text-xs text-gray-500">Status</p>
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-900 rounded-full text-xs font-medium">
+                                            <span className="w-1.5 h-1.5 bg-blue-800 rounded-full"></span>
                                             Reported
                                         </span>
                                     </div>
@@ -591,7 +623,7 @@ const CreateReport = () => {
                                 </button>
                                 <button
                                     onClick={() => setShowShareModal(true)}
-                                    className="group flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
+                                    className="group flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#EE6B07] to-[#FFA500] text-white rounded-xl hover:from-[#D95F06] hover:to-[#EE6B07] transition-all duration-200 font-medium shadow-md hover:shadow-lg"
                                 >
                                     <svg className="w-5 h-5 group-hover:scale-110 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -734,6 +766,60 @@ const CreateReport = () => {
                 <DraftReminder onLoad={handleLoadDraft} onDismiss={handleDismissDraft} />
             )}
 
+            {/* Duplicate Warning Modal */}
+            {showDuplicateWarning && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+                        <div className="bg-orange-50 border-b border-orange-200 px-6 py-5">
+                            <div className="flex items-center gap-3">
+                                <span className="text-3xl">⚠️</span>
+                                <div>
+                                    <h2 className="text-lg font-bold text-orange-800">Similar Issues Already Exist</h2>
+                                    <p className="text-sm text-orange-600">
+                                        {pendingDuplicates.length} active {formData.category.replace('_', ' ')} report{pendingDuplicates.length > 1 ? 's' : ''} found within 500m.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="px-6 py-4 max-h-64 overflow-y-auto space-y-3">
+                            {pendingDuplicates.map(dup => (
+                                <div key={dup._id} className="flex items-start justify-between gap-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-gray-900 truncate">{dup.title}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            {Math.round(dup.distance)}m away · {dup.upvoteCount || 0} upvotes
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => { setShowDuplicateWarning(false); navigate(`/complaint/${dup._id}`); }}
+                                        className="text-xs text-blue-600 hover:underline whitespace-nowrap flex-shrink-0"
+                                    >
+                                        View →
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="px-6 py-4 bg-gray-50 border-t flex flex-col sm:flex-row gap-3">
+                            <button
+                                onClick={() => { setShowDuplicateWarning(false); setPendingFormData(null); setPendingDuplicates([]); }}
+                                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 font-medium text-sm"
+                            >
+                                Cancel — I'll upvote instead
+                            </button>
+                            <button
+                                onClick={handleConfirmSubmit}
+                                disabled={submitting}
+                                className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 disabled:opacity-50 font-medium text-sm"
+                            >
+                                {submitting ? 'Submitting…' : 'Submit Anyway'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* AutoSave Component (new) */}
             <AutoSave data={{
                 title: formData.title,
@@ -788,7 +874,7 @@ const CreateReport = () => {
                             <button
                                 onClick={handleLiveLocation}
                                 disabled={locationUpdating}
-                                className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-[#0F172A] text-[#FFA500] rounded-lg hover:bg-[#1E293B] disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {locationUpdating ? (
                                     <>
@@ -967,14 +1053,14 @@ const CreateReport = () => {
                             <button
                                 type="button"
                                 onClick={handleAutoSave}
-                                className="px-6 py-3 bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-700 transition-colors duration-200"
+                                className="px-6 py-3 bg-[#FFA500] text-[#0F172A] font-medium rounded-lg hover:bg-gray-700 transition-colors duration-200"
                             >
                                 Save as Draft
                             </button>
                             <button
                                 type="submit"
                                 disabled={submitting || !location || !formData.category || !captchaToken}
-                                className="flex-1 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                                className="flex-1 px-6 py-3 bg-[#0F172A] text-[#FFA500] font-medium rounded-lg hover:bg-[#1E293B] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                             >
                                 {submitting ? (
                                     <span className="flex items-center justify-center">
@@ -1010,42 +1096,19 @@ const CreateReport = () => {
                                 {/* Warning Message */}
                                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
                                     <p className="text-xs text-orange-700">
-                                        These issues may already be reported in your area.
+                                        ⚠️ These issues may already be reported in your area. Consider upvoting an existing one instead of creating a duplicate.
                                     </p>
                                 </div>
 
-                                {/* Issues List */}
-                                <div className="space-y-4">
-                                    {nearbyIssues.slice(0, 3).map((issue) => (
-                                        <div key={issue._id} className="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center space-x-2">
-                                                    <span className="text-sm font-medium">{issue.upvoteCount || 0} upvotes</span>
-                                                    {getStatusBadge(issue.status)}
-                                                </div>
-                                            </div>
-                                            <h4 className="font-medium text-gray-900 mb-2">{issue.title}</h4>
-                                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-3">
-                                                <div>{Math.round(issue.distance)}m away</div>
-                                                <div>{timeAgo(issue.createdAt)}</div>
-                                            </div>
-                                            <button
-                                                onClick={() => handleViewAllNearby()}
-                                                className="text-sm text-blue-600 hover:text-blue-800"
-                                            >
-                                                View details →
-                                            </button>
-                                        </div>
+                                {/* Scrollable Issues List — all issues, no slice */}
+                                <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                                    {nearbyIssues.map((issue) => (
+                                        <SimilarIssuesCard
+                                            key={issue._id}
+                                            issue={issue}
+                                            onViewDetails={handleViewDetails}
+                                        />
                                     ))}
-
-                                    {nearbyIssues.length > 3 && (
-                                        <button
-                                            onClick={handleViewAllNearby}
-                                            className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium pt-2"
-                                        >
-                                            View all {nearbyIssues.length} nearby issues →
-                                        </button>
-                                    )}
                                 </div>
                             </div>
                         </div>

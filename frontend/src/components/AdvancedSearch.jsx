@@ -17,7 +17,7 @@ const AdvancedSearch = () => {
         hasPhotos: 'false',
         useMyLocation: false
     });
-    
+
     const [results, setResults] = useState([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
@@ -69,7 +69,7 @@ const AdvancedSearch = () => {
                 (error) => {
                     console.error('Location error:', error);
                     let errorMessage = 'Unable to get your location. ';
-                    switch(error.code) {
+                    switch (error.code) {
                         case error.PERMISSION_DENIED:
                             errorMessage += 'Please enable location access in your browser settings.';
                             break;
@@ -100,7 +100,7 @@ const AdvancedSearch = () => {
     const handleSearch = async (page = 1) => {
         setSearchLoading(true);
         setSearchPerformed(true);
-        
+
         try {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -109,7 +109,7 @@ const AdvancedSearch = () => {
             }
 
             const params = new URLSearchParams();
-            
+
             // Add all search parameters
             if (searchParams.query && searchParams.query.trim()) {
                 params.append('query', searchParams.query.trim());
@@ -144,37 +144,37 @@ const AdvancedSearch = () => {
             if (searchParams.hasPhotos === 'true') {
                 params.append('hasPhotos', 'true');
             }
-            
+
             // Add location if using my location
             if (searchParams.useMyLocation && userLocation) {
                 params.append('lat', userLocation.lat);
                 params.append('lng', userLocation.lng);
                 params.append('radius', nearbyRadius);
             }
-            
+
             params.append('page', page);
             params.append('limit', 20);
-            
+
             const url = `http://localhost:5000/api/search?${params.toString()}`;
             console.log('Search URL:', url);
-            
+
             const response = await axios.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             console.log('Search response:', response.data);
-            
+
             setResults(response.data.data || []);
             setPagination({
                 page: response.data.pagination.page,
                 total: response.data.pagination.total,
                 pages: response.data.pagination.pages
             });
-            
+
             if (response.data.data.length === 0) {
                 console.log('No results found for search criteria');
             }
-            
+
         } catch (error) {
             console.error('Search error:', error);
             if (error.response) {
@@ -379,7 +379,7 @@ const AdvancedSearch = () => {
                             />
                             <label className="ml-2 text-sm font-medium text-gray-700">Search near my location</label>
                         </div>
-                        
+
                         {searchParams.useMyLocation && (
                             <>
                                 {!userLocation && !locationLoading && (
@@ -393,14 +393,14 @@ const AdvancedSearch = () => {
                                         Get My Location
                                     </button>
                                 )}
-                                
+
                                 {locationLoading && (
                                     <div className="flex items-center gap-2">
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
                                         <span className="text-sm text-gray-600">Getting location...</span>
                                     </div>
                                 )}
-                                
+
                                 {userLocation && (
                                     <div className="flex items-center gap-4">
                                         <span className="text-sm text-green-600 flex items-center gap-1">
@@ -426,7 +426,7 @@ const AdvancedSearch = () => {
                                 )}
                             </>
                         )}
-                        
+
                         <button
                             onClick={resetFilters}
                             className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
@@ -434,7 +434,7 @@ const AdvancedSearch = () => {
                             Reset All Filters
                         </button>
                     </div>
-                    
+
                     {/* Warning message */}
                     {showLocationWarning && (
                         <div className="mt-3 text-sm text-orange-600 flex items-center gap-2">
@@ -451,7 +451,7 @@ const AdvancedSearch = () => {
                     <button
                         onClick={() => handleSearch(1)}
                         disabled={searchLoading || (searchParams.useMyLocation && !userLocation && !locationLoading)}
-                        className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                        className="px-6 py-2.5 bg-[#0F172A] text-white rounded-lg hover:bg-blue-900 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
                     >
                         {searchLoading ? (
                             <span className="flex items-center gap-2">
@@ -487,13 +487,13 @@ const AdvancedSearch = () => {
                             <p className="text-sm text-gray-500">Sorted by distance</p>
                         )}
                     </div>
-                    
+
                     <div className="space-y-6">
                         {results.map(issue => (
                             <IssueCard key={issue._id} issue={issue} />
                         ))}
                     </div>
-                    
+
                     {/* Pagination */}
                     {pagination.pages > 1 && (
                         <div className="mt-8 flex justify-center gap-2">

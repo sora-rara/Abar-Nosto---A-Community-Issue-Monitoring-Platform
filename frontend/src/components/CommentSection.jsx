@@ -6,7 +6,7 @@ const decodeToken = (token) => {
     try {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
             return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
         return JSON.parse(jsonPayload);
@@ -44,7 +44,7 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
     useEffect(() => {
         setComments(initialComments || []);
         console.log('Comments loaded:', initialComments);
-        
+
         // Log each comment's user ID for debugging
         if (initialComments && initialComments.length > 0) {
             initialComments.forEach((comment, index) => {
@@ -59,7 +59,7 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
 
         setSubmitting(true);
         setError('');
-        
+
         try {
             const token = localStorage.getItem('token');
             const response = await axios.post(
@@ -73,10 +73,10 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
                     ...response.data.comment,
                     user: response.data.comment.user || currentUserId
                 };
-                
+
                 setComments(prev => [newCommentObj, ...prev]);
                 setNewComment('');
-                
+
                 if (onCommentAdded) {
                     onCommentAdded(newCommentObj);
                 }
@@ -95,7 +95,7 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
         try {
             const token = localStorage.getItem('token');
             console.log('Editing comment:', { issueId, commentId, editText });
-            
+
             const response = await axios.put(
                 `http://localhost:5000/api/issues/${issueId}/comments/${commentId}`,
                 { text: editText },
@@ -103,12 +103,12 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
             );
 
             if (response.data.success) {
-                setComments(prev => prev.map(c => 
+                setComments(prev => prev.map(c =>
                     c._id === commentId ? response.data.comment : c
                 ));
                 setEditingId(null);
                 setEditText('');
-                
+
                 if (onCommentUpdated) {
                     onCommentUpdated(response.data.comment);
                 }
@@ -124,18 +124,18 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
         if (!window.confirm('Are you sure you want to delete this comment?')) return;
 
         setDeletingId(commentId);
-        
+
         try {
             const token = localStorage.getItem('token');
             console.log('Deleting comment:', { issueId, commentId });
-            
+
             await axios.delete(
                 `http://localhost:5000/api/issues/${issueId}/comments/${commentId}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
             setComments(prev => prev.filter(c => c._id !== commentId));
-            
+
             if (onCommentDeleted) {
                 onCommentDeleted(commentId);
             }
@@ -179,7 +179,7 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
             console.log('Missing data:', { currentUserId, commentUser: comment.user });
             return false;
         }
-        
+
         // Handle both string and object formats
         let commentUserId;
         if (typeof comment.user === 'object') {
@@ -187,17 +187,17 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
         } else {
             commentUserId = comment.user;
         }
-        
+
         // Convert both to strings for comparison
         const commentIdStr = commentUserId?.toString();
         const currentIdStr = currentUserId?.toString();
-        
+
         console.log('Ownership check:', {
             commentUserId: commentIdStr,
             currentUserId: currentIdStr,
             isMatch: commentIdStr === currentIdStr
         });
-        
+
         return commentIdStr === currentIdStr;
     };
 
@@ -227,7 +227,7 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
                         <button
                             type="submit"
                             disabled={submitting || !newComment.trim()}
-                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 transition"
+                            className="px-6 py-2 bg-[#1B2D57] text-white rounded-lg hover:bg-[#0F172A] disabled:bg-blue-300 transition"
                         >
                             {submitting ? 'Posting...' : 'Post Comment'}
                         </button>
@@ -244,7 +244,7 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
                 ) : (
                     comments.map((comment) => {
                         const isOwner = isCommentOwner(comment);
-                        
+
                         return (
                             <div key={comment._id} className="p-4 hover:bg-gray-50 transition group">
                                 {editingId === comment._id ? (
@@ -295,7 +295,7 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
                                                     )}
                                                 </div>
                                             </div>
-                                            
+
                                             {/* Comment Actions - Only for comment owner */}
                                             {isOwner && (
                                                 <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">

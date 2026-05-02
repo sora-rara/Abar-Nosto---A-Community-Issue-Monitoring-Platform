@@ -245,21 +245,19 @@ const AuthorityDirectory = () => {
                     <div className="flex gap-6">
                         <button
                             onClick={() => setActiveTab('authorities')}
-                            className={`pb-3 px-1 font-medium text-sm transition-colors ${
-                                activeTab === 'authorities'
-                                    ? 'text-blue-600 border-b-2 border-blue-600'
-                                    : 'text-gray-500 hover:text-gray-700'
-                            }`}
+                            className={`pb-3 px-1 font-medium text-sm transition-colors ${activeTab === 'authorities'
+                                ? 'text-blue-600 border-b-2 border-blue-600'
+                                : 'text-gray-500 hover:text-gray-700'
+                                }`}
                         >
                             Authorities
                         </button>
                         <button
                             onClick={() => setActiveTab('services')}
-                            className={`pb-3 px-1 font-medium text-sm transition-colors ${
-                                activeTab === 'services'
-                                    ? 'text-blue-600 border-b-2 border-blue-600'
-                                    : 'text-gray-500 hover:text-gray-700'
-                            }`}
+                            className={`pb-3 px-1 font-medium text-sm transition-colors ${activeTab === 'services'
+                                ? 'text-blue-600 border-b-2 border-blue-600'
+                                : 'text-gray-500 hover:text-gray-700'
+                                }`}
                         >
                             Government Services
                         </button>
@@ -310,7 +308,7 @@ const AuthorityDirectory = () => {
                             <div className="flex justify-between items-center">
                                 <button
                                     onClick={applyFilters}
-                                    className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                                    className="px-5 py-2 bg-[#FFA500] text-[ #0F172A] rounded-lg hover:bg-[#e59400] transition"
                                 >
                                     Search
                                 </button>
@@ -542,7 +540,7 @@ const AuthorityCard = ({ authority, onApply }) => {
                     </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-gray-100">
-                    <button onClick={onApply} className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium">
+                    <button onClick={onApply} className="w-full px-4 py-2 bg-[#FFA500] text-[ #0F172A] rounded-lg hover:bg-[#e59400] transition text-sm font-medium">
                         Contact / Apply
                     </button>
                 </div>

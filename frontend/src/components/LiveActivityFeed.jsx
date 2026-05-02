@@ -90,7 +90,7 @@ const LiveActivityFeed = () => {
             case 'new_issue':
                 return (
                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 text-[#3359B2]" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z" />
                         </svg>
                     </div>
@@ -98,7 +98,7 @@ const LiveActivityFeed = () => {
             case 'new_comment':
                 return (
                     <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 text-[#2c928d]" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3 1h10v2H5V6zm0 4h10v2H5v-2zm0 4h6v2H5v-2z" />
                         </svg>
                     </div>
@@ -106,7 +106,7 @@ const LiveActivityFeed = () => {
             case 'upvote':
                 return (
                     <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 text-[#2c928d]" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                         </svg>
                     </div>
@@ -190,7 +190,7 @@ const LiveActivityFeed = () => {
 
     return (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="p-4 border-b bg-gradient-to-r from-blue-600 to-blue-700">
+            <div className="p-4 border-b bg-gradient-to-r from-[#3359B2] to-[#0F172A]">
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-white">Live Activity Feed</h2>
                     <div className="flex items-center space-x-1">
@@ -209,8 +209,8 @@ const LiveActivityFeed = () => {
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`px-2 py-1 text-xs rounded-full transition ${filter === f
-                                ? 'bg-white text-blue-700'
-                                : 'bg-blue-500 text-white hover:bg-blue-400'
+                                ? 'bg-white text-[#0F172A]'
+                                : 'bg-[#1B2D57] text-white hover:bg-blue-400'
                                 }`}
                         >
                             {f === 'all' ? 'All' : f.replace('_', ' ')}
@@ -251,7 +251,7 @@ const LiveActivityFeed = () => {
                                             {' '}
                                             <span className="text-gray-500">{getActivityText(activity)}</span>
                                             {' '}
-                                            <span className="font-medium text-blue-600 hover:underline">
+                                            <span className="font-medium text-[#3359B2] hover:underline">
                                                 {activity.issueTitle || 'Unknown issue'}
                                             </span>
                                         </p>
@@ -280,7 +280,7 @@ const LiveActivityFeed = () => {
                 <div className="p-4 border-t text-center">
                     <button
                         onClick={() => fetchActivities(false)}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        className="text-sm text-[#3359B2] hover:text-blue-800 font-medium"
                     >
                         Load More
                     </button>

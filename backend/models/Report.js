@@ -66,6 +66,12 @@ const reportSchema = new mongoose.Schema({
         thumbnailUrl: String,
         caption: String
     }],
+    status: {
+        type: String,
+        enum: ['reported', 'in_progress', 'resolved', 'archived'],
+        default: 'reported'
+    },
+
     // Add these fields to your existing schema
     statusHistory: [
         {

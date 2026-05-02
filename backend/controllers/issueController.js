@@ -53,28 +53,44 @@ const syncToAdminCollection = async (reportId) => {
 // ===========================================
 const getIssues = async (req, res) => {
     try {
-        // 1. Make sure ward and area are extracted from the query
         const { status, category, page = 1, limit = 10, sort = '-createdAt', exclude_resolved, ward, area } = req.query;
 
         const filter = {};
-        
-        // (Your existing filters...)
+
         if (status && status !== 'all') filter.status = status;
         if (category && category !== 'all') filter.category = category;
-        if (exclude_resolved === 'true') filter.status = { $ne: 'resolved' };
+        if (exclude_resolved === 'true') filter.status = { $nin: ['resolved', 'archived'] };
 
-        // 2. ADD THE REGEX LOCATION SEARCH LOGIC
         if (area && area !== 'all') {
-            // Search the address string for the specific area name (e.g., "Uttara Model Town")
             filter['location.address'] = { $regex: area, $options: 'i' };
         } else if (ward && ward !== 'all') {
-            // If they only picked a ward, search the address string for the ward number
             filter['location.address'] = { $regex: `Ward ${ward}`, $options: 'i' };
         }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const [issues, total] = await Promise.all([
+            Report.find(filter)
+                .populate('user', 'name email')
+                .sort(sort)
+                .skip(skip)
+                .limit(parseInt(limit)),
+            Report.countDocuments(filter)
+        ]);
+
+        res.json({
+            success: true,
+            data: issues,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('getIssues error:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 

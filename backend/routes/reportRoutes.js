@@ -7,6 +7,7 @@ const { verifyCaptcha } = require('../middleware/captchaMiddleware');
 const {
     createReport,
     getNearbyReports,
+    checkDuplicate,
     getMyReports,
     getReportById,
     upvoteReport
@@ -28,6 +29,11 @@ router.post('/',
 // @desc    Get nearby reports
 // @access  Private
 router.get('/nearby', getNearbyReports);
+
+// @route   POST /api/reports/check-duplicate
+// @desc    Check for duplicate reports at a location
+// @access  Private
+router.post('/check-duplicate', checkDuplicate);
 
 // @route   GET /api/reports/my-reports
 // @desc    Get current user's reports

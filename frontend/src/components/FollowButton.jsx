@@ -64,17 +64,11 @@ const FollowButton = ({ issueId }) => {
         <button
             onClick={toggleFollow}
             disabled={loading}
-            style={buttonStyle}
-            onMouseEnter={(e) => {
-                if (!loading) {
-                    e.currentTarget.style.backgroundColor = isFollowing ? '#dc2626' : '#2563eb';
-                }
-            }}
-            onMouseLeave={(e) => {
-                if (!loading) {
-                    e.currentTarget.style.backgroundColor = isFollowing ? '#ef4444' : '#3b82f6';
-                }
-            }}
+            className={`px-3 py-2 rounded-lg text-white font-medium transition-colors duration-200 disabled:opacity-50
+        ${isFollowing
+                    ? 'bg-[#FFA500] hover:bg-[#e69500]'
+                    : 'bg-[#0F172A] hover:bg-[#1E293B]'
+                }`}
         >
             {loading ? '...' : (isFollowing ? 'Unfollow' : 'Follow')}
         </button>

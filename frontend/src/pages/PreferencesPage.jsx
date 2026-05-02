@@ -334,7 +334,7 @@ const PreferencesPage = () => {
                                 <button
                                     onClick={handleSaveLocation}
                                     disabled={locating}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                    className="px-4 py-2 bg-[#FFA500] text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                                 >
                                     {locating ? 'Getting location...' : '📍 Save my current location'}
                                 </button>
@@ -349,7 +349,7 @@ const PreferencesPage = () => {
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                className="px-6 py-2 bg-[#0F172A] text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                             >
                                 {saving ? 'Saving...' : 'Save Changes'}
                             </button>

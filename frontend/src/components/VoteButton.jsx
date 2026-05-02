@@ -10,13 +10,13 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
 
     // Initialize state when props change
     useEffect(() => {
-        console.log('VoteButton received props:', { 
-            issueId, 
-            initialUpvotes, 
-            initialDownvotes, 
-            initialUserVote 
+        console.log('VoteButton received props:', {
+            issueId,
+            initialUpvotes,
+            initialDownvotes,
+            initialUserVote
         });
-        
+
         setUpvotes(initialUpvotes || 0);
         setDownvotes(initialDownvotes || 0);
         setUserVote(initialUserVote || null);
@@ -35,11 +35,11 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
             const response = await axios.post(
                 `http://localhost:5000/api/issues/${issueId}/upvote`,
                 {},
-                { 
-                    headers: { 
+                {
+                    headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
-                    } 
+                    }
                 }
             );
 
@@ -48,7 +48,7 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
                 setUpvotes(response.data.upvoteCount);
                 setDownvotes(response.data.downvoteCount);
                 setUserVote(response.data.hasUpvoted ? 'up' : null);
-                
+
                 if (onUpdate) {
                     onUpdate(response.data);
                 }
@@ -74,11 +74,11 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
             const response = await axios.post(
                 `http://localhost:5000/api/issues/${issueId}/downvote`,
                 {},
-                { 
-                    headers: { 
+                {
+                    headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
-                    } 
+                    }
                 }
             );
 
@@ -87,7 +87,7 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
                 setUpvotes(response.data.upvoteCount);
                 setDownvotes(response.data.downvoteCount);
                 setUserVote(response.data.hasDownvoted ? 'down' : null);
-                
+
                 if (onUpdate) {
                     onUpdate(response.data);
                 }
@@ -103,7 +103,7 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
     const netVotes = upvotes - downvotes;
 
     return (
-        <div className="flex flex-col items-center w-full">
+        <div className="flex flex-col items-center">
             <div className="flex items-center w-full">
                 {/* Upvote Button */}
                 <button
@@ -111,10 +111,10 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
                     disabled={loading}
                     className={`
                         flex-1 flex items-center justify-center space-x-2
-                        px-4 py-3 rounded-l-lg
+                        px-4 py-2 rounded-l-lg
                         transition-all duration-200
-                        ${userVote === 'up' 
-                            ? 'bg-green-600 text-white hover:bg-green-700' 
+                        ${userVote === 'up'
+                            ? 'bg-green-600 text-white hover:bg-green-700'
                             : 'bg-gray-100 text-gray-700 hover:bg-green-100 hover:text-green-700'
                         }
                         ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
@@ -129,7 +129,7 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
                 </button>
 
                 {/* Net Vote Display */}
-                <div className="px-4 py-3 bg-blue-600 text-white font-bold text-lg min-w-[70px] text-center">
+                <div className="px-4 py-2 bg-[#0F172A] text-white font-bold text-lg min-w-[70px] text-center">
                     {netVotes > 0 ? `+${netVotes}` : netVotes}
                 </div>
 
@@ -139,10 +139,10 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
                     disabled={loading}
                     className={`
                         flex-1 flex items-center justify-center space-x-2
-                        px-4 py-3 rounded-r-lg
+                        px-4 py-2 rounded-r-lg
                         transition-all duration-200
-                        ${userVote === 'down' 
-                            ? 'bg-red-600 text-white hover:bg-red-700' 
+                        ${userVote === 'down'
+                            ? 'bg-red-600 text-white hover:bg-red-700'
                             : 'bg-gray-100 text-gray-700 hover:bg-red-100 hover:text-red-700'
                         }
                         ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}

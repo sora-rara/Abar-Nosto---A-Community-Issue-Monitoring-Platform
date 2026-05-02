@@ -8,13 +8,13 @@ const ShareModal = ({ isOpen, onClose, issueId, issueTitle }) => {
     if (!isOpen) return null;
 
     const shareUrl = `${window.location.origin}/shared-issue/${issueId}`;
-    
+
     const handleCopyLink = async () => {
         try {
             await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
-            
+
             // Track share
             await trackShare('copy_link');
         } catch (err) {
@@ -38,11 +38,11 @@ const ShareModal = ({ isOpen, onClose, issueId, issueTitle }) => {
     const handleSocialShare = async (platform) => {
         setShareLoading(true);
         await trackShare(platform);
-        
+
         let shareLink = '';
         const encodedUrl = encodeURIComponent(shareUrl);
         const encodedTitle = encodeURIComponent(`Check out this issue: ${issueTitle}`);
-        
+
         switch (platform) {
             case 'facebook':
                 shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
@@ -60,7 +60,7 @@ const ShareModal = ({ isOpen, onClose, issueId, issueTitle }) => {
                 shareLink = `https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}`;
                 break;
         }
-        
+
         window.open(shareLink, '_blank', 'width=600,height=400');
         setShareLoading(false);
         onClose();
@@ -109,7 +109,7 @@ const ShareModal = ({ isOpen, onClose, issueId, issueTitle }) => {
                             />
                             <button
                                 onClick={handleCopyLink}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                                className="px-4 py-2 bg-[#1B2D57] text-white rounded-lg hover:bg-[#0F172A] transition"
                             >
                                 {copied ? 'Copied!' : 'Copy'}
                             </button>
@@ -155,7 +155,7 @@ const ShareModal = ({ isOpen, onClose, issueId, issueTitle }) => {
                     {navigator.share && (
                         <button
                             onClick={handleNativeShare}
-                            className="w-full mt-2 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium hover:from-blue-700 hover:to-blue-800 transition"
+                            className="w-full mt-2 py-3 bg-[#1B2D57] text-white rounded-lg font-medium hover:from-blue-700 hover:bg-[#0F172A] transition"
                         >
                             Share via Native Share
                         </button>

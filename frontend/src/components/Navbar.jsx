@@ -156,7 +156,7 @@ const Navbar = () => {
                                             }`}
                                         style={isActive('/map') ? { backgroundColor: '#FFA500' } : {}}
                                     >
-                                        🗺️ Map
+                                        Map
                                     </Link>
 
                                     {/* Authorities Link – different for admin vs regular user */}
@@ -169,7 +169,7 @@ const Navbar = () => {
                                                 }`}
                                             style={isActive('/authorities') ? { backgroundColor: '#FFA500' } : {}}
                                         >
-                                            📞 Authorities
+                                            Authorities
                                         </Link>
                                     )}
                                     {isAdmin && (
