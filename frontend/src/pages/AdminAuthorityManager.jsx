@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 
 const AdminAuthorityManager = () => {
     const [activeTab, setActiveTab] = useState('authorities');
@@ -38,9 +38,7 @@ const AdminAuthorityManager = () => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('http://localhost:5000/api/authorities', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await API.get('/authorities');
             setAuthorities(res.data.data);
         } catch (error) {
             console.error('Failed to fetch authorities:', error);
@@ -54,9 +52,7 @@ const AdminAuthorityManager = () => {
         setLoadingServices(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('http://localhost:5000/api/gov-services/admin/all', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await API.get('/gov-services/admin/all');
             setServices(res.data.data);
         } catch (error) {
             console.error('Failed to fetch services:', error);
@@ -69,9 +65,7 @@ const AdminAuthorityManager = () => {
         setLoadingIssues(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('http://localhost:5000/api/issues', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await API.get('/issues');
             // ✅ Extract the actual array from res.data
             const issuesArray = res.data.data || (Array.isArray(res.data) ? res.data : []);
             setIssues(issuesArray);
@@ -103,14 +97,10 @@ const AdminAuthorityManager = () => {
         try {
             const token = localStorage.getItem('token');
             if (editingAuthId) {
-                await axios.put(`http://localhost:5000/api/authorities/${editingAuthId}`, authForm, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+await API.put(`/authorities/${editingAuthId}`, authForm);
                 showMessage('Authority updated');
             } else {
-                await axios.post('http://localhost:5000/api/authorities', authForm, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                await API.post('/authorities', authForm);
                 showMessage('Authority created');
             }
             resetAuthForm();
@@ -139,9 +129,7 @@ const AdminAuthorityManager = () => {
         if (!showDeleteConfirm) return;
         try {
             const token = localStorage.getItem('token');
-            await axios.delete(`http://localhost:5000/api/authorities/${showDeleteConfirm.id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await API.delete(`/authorities/${showDeleteConfirm.id}`);
             showMessage('Authority deleted');
             fetchAuthorities();
         } catch (error) {
@@ -161,14 +149,10 @@ const AdminAuthorityManager = () => {
         try {
             const token = localStorage.getItem('token');
             if (editingServiceId) {
-                await axios.put(`http://localhost:5000/api/gov-services/${editingServiceId}`, serviceForm, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                await API.put(`/gov-services/${editingServiceId}`, serviceForm);
                 showMessage('Service updated');
             } else {
-                await axios.post('http://localhost:5000/api/gov-services', serviceForm, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                await API.post('/gov-services', serviceForm);
                 showMessage('Service created');
             }
             resetServiceForm();
@@ -197,9 +181,7 @@ const AdminAuthorityManager = () => {
         if (!showDeleteConfirm) return;
         try {
             const token = localStorage.getItem('token');
-            await axios.delete(`http://localhost:5000/api/gov-services/${showDeleteConfirm.id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await API.delete(`/gov-services/${showDeleteConfirm.id}`);
             showMessage('Service deleted');
             fetchServices();
         } catch (error) {
@@ -214,9 +196,7 @@ const AdminAuthorityManager = () => {
         setGenerating(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get(`http://localhost:5000/api/summary/issues/${issueId}/summary`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await API.get(`/summary/issues/${issueId}/summary`);
             setSummary(res.data.data.summary);
         } catch (error) {
             console.error('Failed to generate summary:', error);

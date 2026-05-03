@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../services/api';
 
 const PreferencesPage = () => {
     const navigate = useNavigate();
@@ -29,9 +29,7 @@ const PreferencesPage = () => {
         const fetchNotifications = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.get('/api/notifications?limit=50', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await API.get('/notifications?limit=50');
                 setNotifications(res.data.data || []);
             } catch (err) {
                 console.error('Failed to fetch notifications:', err);
@@ -47,9 +45,7 @@ const PreferencesPage = () => {
         const fetchPrefs = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.get('/api/preferences', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await API.get('/preferences');
                 const data = res.data.data;
                 setPrefs({
                     enableAll: data.enableAll ?? true,
@@ -90,9 +86,7 @@ const PreferencesPage = () => {
         setSaving(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.put('/api/preferences', prefs, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await API.put('/preferences', prefs);
             alert('Preferences saved successfully!');
         } catch (err) {
             console.error('Save error:', err);
@@ -134,9 +128,7 @@ const PreferencesPage = () => {
     const markAsRead = async (id) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.put(`/api/notifications/${id}/read`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await API.put(`/notifications/${id}/read`);
             // Update local state
             setNotifications(prev =>
                 prev.map(n => (n._id === id ? { ...n, read: true } : n))

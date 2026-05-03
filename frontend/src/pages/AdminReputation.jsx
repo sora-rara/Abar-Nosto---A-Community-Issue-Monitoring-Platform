@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import UserReputation from '../components/UserReputation';
 
 const AdminReputation = () => {
@@ -28,9 +28,7 @@ const AdminReputation = () => {
     const fetchUsers = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/admin/users', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await API.get('/admin/users');
             setUsers(response.data.users);
         } catch (error) {
             console.error('Error fetching users:', error);
@@ -43,9 +41,7 @@ const AdminReputation = () => {
     const fetchUserHistory = async (userId) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get(`http://localhost:5000/api/admin/users/${userId}/history`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await API.get(`/admin/users/${userId}/history`); 
             setHistory(response.data.history);
         } catch (error) {
             console.error('Error fetching history:', error);
@@ -60,9 +56,8 @@ const AdminReputation = () => {
         try {
             const token = localStorage.getItem('token');
             // Fetch latest users data from database
-            const response = await axios.get('http://localhost:5000/api/admin/users', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await API.get('/admin/users');
+
             
             // Update local state with database data
             setUsers(response.data.users);
@@ -73,10 +68,7 @@ const AdminReputation = () => {
                 if (updatedUser) {
                     setSelectedUser(updatedUser);
                     // Refresh history
-                    const historyResponse = await axios.get(
-                        `http://localhost:5000/api/admin/users/${selectedUser._id}/history`,
-                        { headers: { Authorization: `Bearer ${token}` } }
-                    );
+                    const historyResponse = await API.get(`/admin/users/${selectedUser._id}/history`);
                     setHistory(historyResponse.data.history);
                 }
             }
@@ -147,13 +139,9 @@ const AdminReputation = () => {
 
         try {
             const token = localStorage.getItem('token');
-            await axios.post(
-                `http://localhost:5000/api/admin/users/${selectedUser._id}/reputation`,
-                {
-                    points: parseInt(adjustPoints),
-                    reason: adjustReason
-                },
-                { headers: { Authorization: `Bearer ${token}` } }
+            await API.post(
+                `/admin/users/${selectedUser._id}/reputation`,
+                { points: parseInt(adjustPoints), reason: adjustReason }
             );
             setMessage({ type: 'success', text: 'Reputation updated successfully' });
             

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import API from '../services/api';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
 import UserReputation from './UserReputation';
@@ -14,7 +15,7 @@ const Navbar = () => {
 
     const fetchUserReputation = async (token) => {
         try {
-            const response = await fetch('http://localhost:5000/api/auth/me', {
+            const response = await fetch('/auth/me', {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'

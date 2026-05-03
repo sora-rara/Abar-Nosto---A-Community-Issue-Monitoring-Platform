@@ -236,7 +236,10 @@ app.locals.imagekit = imagekit;
 
 // CORS
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+    origin: ['http://localhost:5173',
+        'http://localhost:5174',
+        process.env.CORS_ORIGIN
+    ].filter(Boolean),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -384,7 +387,10 @@ app.get('/', (req, res) => {
 // ========== SOCKET.IO SETUP ==========
 const server = http.createServer(app);
 const io = socketIo(server, {
-    cors: { origin: ['http://localhost:5173', 'http://localhost:5174'], credentials: true }
+    cors: {
+        origin: ['http://localhost:5173', 'http://localhost:5174', process.env.CORS_ORIGIN].filter(Boolean),
+        credentials: true
+    }
 });
 app.set('io', io);
 

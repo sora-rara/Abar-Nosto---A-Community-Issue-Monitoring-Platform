@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import API from '../services/api';
 import IssueCard from './IssueCard';
 import LiveActivityFeed from './LiveActivityFeed';
 import dhakaData from './dhaka-borders.json';
@@ -74,7 +74,7 @@ const UpDashboard = () => {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            let url = 'http://localhost:5000/api/issues';
+            let url = '/issues';
 
             // 1. Send Category and Status to the backend
             const params = new URLSearchParams();
@@ -85,7 +85,7 @@ const UpDashboard = () => {
                 url += `?${params.toString()}`;
             }
 
-            const response = await axios.get(url, {
+            const response = await API.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -139,7 +139,7 @@ const UpDashboard = () => {
     const fetchStats = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/issues/stats', {
+            const response = await API.get('/issues/stats', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (response.data.success) {

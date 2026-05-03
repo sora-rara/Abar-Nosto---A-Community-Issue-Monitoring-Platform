@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 
 const AdminSummaryGenerator = () => {
   const [issues, setIssues] = useState([]);
@@ -14,9 +14,7 @@ const AdminSummaryGenerator = () => {
   const fetchIssues = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/issues', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await API.get('/issues');
       setIssues(response.data);
     } catch (error) {
       console.error('Failed to fetch issues:', error);
@@ -27,9 +25,7 @@ const AdminSummaryGenerator = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/summary/issues/${issueId}/summary`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await API.get(`/summary/issues/${issueId}/summary`);
       setSummary(response.data.data.summary);
     } catch (error) {
       console.error('Failed to generate summary:', error);

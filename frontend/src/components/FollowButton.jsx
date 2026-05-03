@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 
 const FollowButton = ({ issueId }) => {
     const [isFollowing, setIsFollowing] = useState(false);
@@ -9,7 +9,7 @@ const FollowButton = ({ issueId }) => {
         const fetchFollowStatus = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const response = await axios.get('/api/follows/my-follows', {
+                const response = await API.get('/follows/my-follows', {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const follows = response.data.data;
@@ -26,12 +26,12 @@ const FollowButton = ({ issueId }) => {
         try {
             const token = localStorage.getItem('token');
             if (isFollowing) {
-                await axios.delete(`/api/follows/${issueId}/unfollow`, {
+                await API.delete(`/follows/${issueId}/unfollow`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setIsFollowing(false);
             } else {
-                await axios.post(`/api/follows/${issueId}/follow`, {}, {
+                await API.post(`/follows/${issueId}/follow`, {}, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setIsFollowing(true);

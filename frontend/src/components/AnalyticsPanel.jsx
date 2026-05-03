@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import authService from '../services/auth';
 
 const AnalyticsPanel = ({ onClose }) => {
@@ -15,8 +15,8 @@ const AnalyticsPanel = ({ onClose }) => {
         try {
             setLoading(true);
             const token = authService.getToken();
-            const response = await axios.get(
-                `http://localhost:5000/api/admin/analytics?period=${period}`,
+            const response = await API.get(
+                `/admin/analytics?period=${period}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (response.data.success) {

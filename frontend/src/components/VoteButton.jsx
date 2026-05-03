@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 
 const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote, onUpdate }) => {
     const [upvotes, setUpvotes] = useState(0);
@@ -32,8 +32,8 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
                 return;
             }
 
-            const response = await axios.post(
-                `http://localhost:5000/api/issues/${issueId}/upvote`,
+            const response = await API.post(
+                `/issues/${issueId}/upvote`,
                 {},
                 {
                     headers: {
@@ -71,8 +71,8 @@ const VoteButton = ({ issueId, initialUpvotes, initialDownvotes, initialUserVote
                 return;
             }
 
-            const response = await axios.post(
-                `http://localhost:5000/api/issues/${issueId}/downvote`,
+            const response = await API.post(
+                `/issues/${issueId}/downvote`,
                 {},
                 {
                     headers: {

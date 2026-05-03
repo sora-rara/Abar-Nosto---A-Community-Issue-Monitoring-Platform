@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import API from '../services/api';
 import VoteButton from '../components/VoteButton';
 import CommentSection from '../components/CommentSection';
 import FollowButton from '../components/FollowButton';
@@ -37,10 +37,7 @@ const ComplaintDetails = () => {
     const fetchComplaintDetails = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get(
-                `http://localhost:5000/api/issues/${id}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            const response = await API.get(`/issues/${id}`);
 
             const data = response.data;
 
@@ -85,9 +82,7 @@ const ComplaintDetails = () => {
     const fetchAdminIssueId = async (reportId) => {
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get(`/api/admin/issues/by-report/${reportId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await API.get(`/admin/issues/by-report/${reportId}`);
             if (res.data.success) {
                 setAdminIssueId(res.data.data._id);
             }
@@ -104,11 +99,9 @@ const ComplaintDetails = () => {
         setUpdating(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.put(
-                `http://localhost:5000/api/admin/issues/${adminIssueId}/status`,
-                { status: statusUpdate.status, comment: statusUpdate.comment },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await API.put(`/admin/issues/${adminIssueId}/status`, {
+                status: statusUpdate.status, comment: statusUpdate.comment
+            });
             alert('Status updated successfully');
             fetchComplaintDetails();
             setStatusUpdate({ status: '', comment: '' });
@@ -124,9 +117,7 @@ const ComplaintDetails = () => {
         setUpdating(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.patch(`/api/admin/issues/${adminIssueId}/reactivate`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await API.patch(`/admin/issues/${adminIssueId}/reactivate`);
             alert('Issue reactivated');
             fetchComplaintDetails();
         } catch (err) {
@@ -141,9 +132,7 @@ const ComplaintDetails = () => {
         if (!window.confirm('Request to reopen this issue? Admins will be notified.')) return;
         try {
             const token = localStorage.getItem('token');
-            await axios.post(`/api/issues/${id}/request-reopen`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await API.post(`/issues/${id}/request-reopen`);
             alert('Reopen request sent to admin');
             setReopenRequested(true);
             fetchComplaintDetails(); // refresh to update any backend state
@@ -158,11 +147,7 @@ const ComplaintDetails = () => {
         setUpdateRequestMessage('');
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.post(
-                `http://localhost:5000/api/issues/${id}/request-update`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            const response = await API.post(`/issues/${id}/request-update`);
             setUpdateRequestMessage(response.data.message);
             setTimeout(() => setUpdateRequestMessage(''), 5000);
         } catch (error) {

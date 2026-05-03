@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/auth';
-import axios from 'axios';
+import API from '../services/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -74,10 +74,8 @@ const AdminDashboard = () => {
                 params.append('category', filters.category);
             }
 
-            const url = `http://localhost:5000/api/admin/issues${params.toString() ? `?${params.toString()}` : ''}`;
-            const response = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const url = `/admin/issues${params.toString() ? `?${params.toString()}` : ''}`;
+            const response = await API.get(url);
 
             if (response.data.success) {
                 setIssues(response.data.data || []);
@@ -96,9 +94,7 @@ const AdminDashboard = () => {
     const fetchStats = async () => {
         try {
             const token = authService.getToken();
-            const response = await axios.get('http://localhost:5000/api/admin/stats', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await API.get('/admin/stats');
             if (response.data.success) {
                 setStats({
                     total: response.data.data.total,
@@ -131,10 +127,9 @@ const AdminDashboard = () => {
         setUpdating(true);
         try {
             const token = authService.getToken();
-            const response = await axios.put(
-                `http://localhost:5000/api/admin/issues/${selectedIssue._id}/status`,
-                statusUpdate,
-                { headers: { Authorization: `Bearer ${token}` } }
+            const response = await API.put(
+                `/admin/issues/${selectedIssue._id}/status`,
+                statusUpdate
             );
 
             if (response.data.success) {
@@ -160,10 +155,9 @@ const AdminDashboard = () => {
         setUpdating(true);
         try {
             const token = authService.getToken();
-            const response = await axios.post(
-                `http://localhost:5000/api/admin/issues/${selectedIssue._id}/final-update`,
-                { statement: finalUpdate },
-                { headers: { Authorization: `Bearer ${token}` } }
+            const response = await API.post(
+                `/admin/issues/${selectedIssue._id}/final-update`,
+                { statement: finalUpdate }
             );
 
             if (response.data.success) {
@@ -195,9 +189,7 @@ const AdminDashboard = () => {
             const token = authService.getToken();
             
             // Fetch all issues for the report
-            const response = await axios.get('http://localhost:5000/api/admin/issues?limit=1000', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await API.get('/admin/issues?limit=1000');
             
             const allIssues = response.data.data || [];
             const reportStats = response.data.stats || stats;
@@ -282,9 +274,7 @@ const AdminDashboard = () => {
             // Fetch category stats if available, otherwise calculate from issues
             let categoryStats = {};
             try {
-                const statsResponse = await axios.get('http://localhost:5000/api/admin/stats', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const statsResponse = await API.get('/admin/stats');
                 if (statsResponse.data.success && statsResponse.data.data.byCategory) {
                     categoryStats = statsResponse.data.data.byCategory;
                 }
@@ -414,9 +404,7 @@ const AdminDashboard = () => {
         if (!window.confirm(`Archive issue "${issue.title}"? It will be hidden from the active dashboard.`)) return;
         try {
             const token = authService.getToken();
-            await axios.patch(`http://localhost:5000/api/admin/issues/${issue._id}/archive`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await API.patch(`/admin/issues/${issue._id}/archive`);
             alert('Issue archived');
             fetchIssues();
             fetchStats();
@@ -429,9 +417,7 @@ const AdminDashboard = () => {
         if (!window.confirm(`Reactivate issue "${issue.title}"? It will reappear on the active dashboard.`)) return;
         try {
             const token = authService.getToken();
-            await axios.patch(`http://localhost:5000/api/admin/issues/${issue._id}/reactivate`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await API.patch(`/admin/issues/${issue._id}/reactivate`);
             alert('Issue reactivated');
             fetchIssues();
             fetchStats();

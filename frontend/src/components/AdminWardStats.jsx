@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -105,7 +105,7 @@ const AdminWardStats = () => {
                 return;
             }
 
-            const response = await axios.get(`http://localhost:5000/api/admin/stats/wards?period=${period}`, {
+            const response = await API.get(`/admin/stats/wards?period=${period}`, {
                 headers: { Authorization: `Bearer ${token}` },
                 signal: controller.signal
             });
@@ -136,7 +136,7 @@ const AdminWardStats = () => {
             const token = localStorage.getItem('token');
             if (!token) return;
 
-            const response = await axios.get(`http://localhost:5000/api/admin/stats/comparison?period=${period}`, {
+            const response = await API.get(`/admin/stats/comparison?period=${period}`, {
                 headers: { Authorization: `Bearer ${token}` },
                 signal: controller.signal
             });
@@ -171,7 +171,7 @@ const AdminWardStats = () => {
                 return;
             }
 
-            const response = await axios.get(`http://localhost:5000/api/admin/stats/wards/${encodeURIComponent(wardName)}/details`, {
+            const response = await API.get(`/admin/stats/wards/${encodeURIComponent(wardName)}/details`, {
                 headers: { Authorization: `Bearer ${token}` },
                 signal: controller.signal
             });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/auth';
 import AdminActivityFeedStats from '../components/AdminActivityFeedStats';
@@ -70,10 +70,7 @@ const AdminActivityFeed = () => {
             params.append('page', pagination.page);
             params.append('limit', pagination.limit);
 
-            const response = await axios.get(
-                `http://localhost:5000/api/admin/activities?${params.toString()}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            const response = await API.get(`/admin/activities?${params.toString()}`);
 
             if (response.data.success) {
                 setActivities(response.data.data);
@@ -122,10 +119,8 @@ const AdminActivityFeed = () => {
             const token = authService.getToken();
             const idsToMark = ids || Array.from(selectedIds);
 
-            await axios.put(
-                'http://localhost:5000/api/admin/activities/read',
-                ids ? { activityIds: idsToMark } : { markAll: true },
-                { headers: { Authorization: `Bearer ${token}` } }
+            await API.put('/admin/activities/read', 
+                ids ? { activityIds: idsToMark } : { markAll: true }
             );
 
             showToast('Activities marked as read', 'success');
@@ -140,11 +135,7 @@ const AdminActivityFeed = () => {
     const handleFlag = async (id, reason) => {
         try {
             const token = authService.getToken();
-            await axios.put(
-                `http://localhost:5000/api/admin/activities/${id}/flag`,
-                { reason },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await API.put(`/admin/activities/${id}/flag`, { reason });
             showToast('Activity flagged', 'success');
             fetchActivities();
         } catch (error) {
@@ -155,11 +146,7 @@ const AdminActivityFeed = () => {
     const handleUpdatePriority = async (id, priority) => {
         try {
             const token = authService.getToken();
-            await axios.put(
-                `http://localhost:5000/api/admin/activities/${id}/priority`,
-                { priority },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await API.put(`/admin/activities/${id}/priority`, { priority });
             showToast(`Priority updated to ${priority}`, 'success');
             fetchActivities();
         } catch (error) {
@@ -170,15 +157,9 @@ const AdminActivityFeed = () => {
     const handleBulkAction = async (action, data = {}) => {
         try {
             const token = authService.getToken();
-            await axios.post(
-                'http://localhost:5000/api/admin/activities/bulk',
-                {
-                    action,
-                    activityIds: Array.from(selectedIds),
-                    data
-                },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await API.post('/admin/activities/bulk', {
+                action, activityIds: Array.from(selectedIds), data
+            });
             showToast(`Bulk ${action} completed`, 'success');
             fetchActivities();
             setSelectedIds(new Set());

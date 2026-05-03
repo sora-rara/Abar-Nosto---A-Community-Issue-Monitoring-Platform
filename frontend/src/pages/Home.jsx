@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import API from '../services/api';
 import authService from '../services/auth';
 
 // The Haversine formula calculates the straight-line distance between two GPS coordinates
@@ -71,10 +71,7 @@ const Home = () => {
     // --- FETCH SIDEBAR ISSUES ---
     const fetchAndFilterNearbyIssues = async (userLat, userLng) => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/issues?exclude_resolved=true', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await API.get('/issues?exclude_resolved=true');
 
             const allIssues = Array.isArray(response.data.data)
                 ? response.data.data
@@ -116,15 +113,23 @@ const Home = () => {
 
                     setNewReport(prev => ({ ...prev, lat, lng, address: 'Fetching street name...' }));
 
-                    try {
-                        const response = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-                        const address = response.data.display_name || 'Unknown Location';
-                        setNewReport(prev => ({ ...prev, address }));
-                        setIsLocating(false);
-                    } catch (error) {
-                        setNewReport(prev => ({ ...prev, address: 'Could not fetch address' }));
-                        setIsLocating(false);
-                    }
+                try {
+                    const response = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+                        {
+                            headers: {
+                                'User-Agent': 'AbarNosto/1.0'
+                            }
+                        }
+                    );
+                    const data = await response.json();
+                    const address = data.display_name || 'Unknown Location';
+                    setNewReport(prev => ({ ...prev, address }));
+                    setIsLocating(false);
+                } catch (error) {
+                    setNewReport(prev => ({ ...prev, address: 'Could not fetch address' }));
+                    setIsLocating(false);
+                }
                 },
                 (error) => {
                     console.error("GPS Error Details:", error);
@@ -149,7 +154,7 @@ const Home = () => {
         e.preventDefault();
         try {
             const token = localStorage.getItem('token');
-            const config = { headers: { Authorization: `Bearer ${token}` } };
+
 
             const formData = new FormData();
             formData.append('type', newReport.type);
@@ -161,7 +166,7 @@ const Home = () => {
                 formData.append('image', newReport.imageFile);
             }
 
-            await axios.post('http://localhost:5000/api/issues', formData, config);
+            await API.post('/issues', formData);
 
             setShowForm(false);
             alert('Issue reported successfully! Check the Map page to see your new pin.');

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 
 const ShareModal = ({ isOpen, onClose, issueId, issueTitle }) => {
     const [copied, setCopied] = useState(false);
@@ -25,8 +25,8 @@ const ShareModal = ({ isOpen, onClose, issueId, issueTitle }) => {
     const trackShare = async (platform) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.post(
-                `http://localhost:5000/api/search/public/${issueId}/share`,
+            await API.post(
+                `/search/public/${issueId}/share`,
                 { platform },
                 { headers: { Authorization: `Bearer ${token}` } }
             );

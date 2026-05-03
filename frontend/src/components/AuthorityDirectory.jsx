@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 
 const AuthorityDirectory = () => {
     const [authorities, setAuthorities] = useState([]);
@@ -53,7 +53,7 @@ const AuthorityDirectory = () => {
     const fetchAuthorities = async () => {
         setLoading(true);
         try {
-            const response = await axios.get('http://localhost:5000/api/authorities');
+            const response = await API.get('/authorities');
             setAuthorities(response.data.data);
         } catch (error) {
             console.error('Failed to fetch authorities:', error);
@@ -65,7 +65,7 @@ const AuthorityDirectory = () => {
     const fetchGovServices = async () => {
         setLoadingServices(true);
         try {
-            const response = await axios.get('http://localhost:5000/api/gov-services');
+            const response = await API.get('/gov-services');
             setGovServices(response.data.data);
         } catch (error) {
             console.error('Failed to fetch government services:', error);
@@ -143,7 +143,7 @@ const AuthorityDirectory = () => {
         if (!selectedAuthority) return;
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get(`http://localhost:5000/api/applications/draft?authorityId=${selectedAuthority._id}`, {
+            const response = await API.get(`/applications/draft?authorityId=${selectedAuthority._id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (response.data.data) {
@@ -179,7 +179,7 @@ const AuthorityDirectory = () => {
         setSavingDraft(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.post('http://localhost:5000/api/applications/draft', {
+            await API.post('/applications/draft', {
                 authorityId: selectedAuthority._id,
                 ...applicationForm
             }, { headers: { Authorization: `Bearer ${token}` } });
@@ -210,7 +210,7 @@ const AuthorityDirectory = () => {
         setSubmitting(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.post(`http://localhost:5000/api/applications/${selectedAuthority._id}/submit`, applicationForm, {
+            await API.post(`/applications/${selectedAuthority._id}/submit`, applicationForm, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setSuccessMessage('Application submitted successfully! An email has been sent to the authority.');
@@ -308,7 +308,7 @@ const AuthorityDirectory = () => {
                             <div className="flex justify-between items-center">
                                 <button
                                     onClick={applyFilters}
-                                    className="px-5 py-2 bg-[#FFA500] text-[ #0F172A] rounded-lg hover:bg-[#e59400] transition"
+                                    className="px-5 py-2 bg-[#FFA500] text-[#0F172A] rounded-lg hover:bg-[#e59400] transition"
                                 >
                                     Search
                                 </button>
@@ -540,7 +540,7 @@ const AuthorityCard = ({ authority, onApply }) => {
                     </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-gray-100">
-                    <button onClick={onApply} className="w-full px-4 py-2 bg-[#FFA500] text-[ #0F172A] rounded-lg hover:bg-[#e59400] transition text-sm font-medium">
+                    <button onClick={onApply} className="w-full px-4 py-2 bg-[#FFA500] text-[#0F172A] rounded-lg hover:bg-[#e59400] transition text-sm font-medium">
                         Contact / Apply
                     </button>
                 </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../services/api';
 import UserReputation from '../components/UserReputation';
 
 const UserProfile = () => {
@@ -28,9 +28,7 @@ const UserProfile = () => {
                 return;
             }
 
-            const response = await axios.get('http://localhost:5000/api/auth/me', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await API.get('/auth/me');
 
             if (response.data.success) {
                 setUser(response.data.user);

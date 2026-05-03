@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import IssueCard from './IssueCard';
 
 const AdvancedSearch = () => {
@@ -155,10 +155,10 @@ const AdvancedSearch = () => {
             params.append('page', page);
             params.append('limit', 20);
 
-            const url = `http://localhost:5000/api/search?${params.toString()}`;
+            const url = `/search?${params.toString()}`;
             console.log('Search URL:', url);
 
-            const response = await axios.get(url, {
+            const response = await API.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 

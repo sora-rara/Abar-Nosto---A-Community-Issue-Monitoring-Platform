@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../services/api';
 import { useDropzone } from 'react-dropzone';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -174,10 +174,12 @@ const CreateReport = () => {
             setLocation({ lat, lng });
 
             // Get address for the selected location
-            const response = await axios.get(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+                { headers: { 'User-Agent': 'AbarNosto/1.0' } }
             );
-            const address = response.data.display_name;
+            const data = await response.json();
+            const address = data.display_name;
             const parsed = parseAddress(address);
 
             setFormData(prev => ({
@@ -226,10 +228,12 @@ const CreateReport = () => {
 
                     try {
                         // Get address from coordinates
-                        const response = await axios.get(
-                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+                        const response = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+                            { headers: { 'User-Agent': 'AbarNosto/1.0' } }
                         );
-                        const address = response.data.display_name;
+                        const data = await response.json();
+                        const address = data.display_name;
                         const parsed = parseAddress(address);
 
                         setFormData(prev => ({
@@ -301,14 +305,13 @@ const CreateReport = () => {
                 navigate('/login');
                 return;
             }
+            
+            
 
             // Build URL — include category if one is selected so backend filters it
-            let url = `http://localhost:5000/api/reports/nearby?lat=${lat}&lng=${lng}&radius=500`;
+            let url = `/reports/nearby?lat=${lat}&lng=${lng}&radius=500`;
             if (category) url += `&category=${category}`;
-
-            const response = await axios.get(url, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await API.get(url);
 
             const RADIUS_M = 500;
             const issuesWithDistance = (response.data.reports || [])
@@ -404,16 +407,9 @@ const CreateReport = () => {
 
     // Shared logic that actually POSTs the report — called either directly or after duplicate confirmation
     const doSubmit = async (formDataToSend, token) => {
-        const response = await axios.post(
-            'http://localhost:5000/api/reports',
-            formDataToSend,
-            {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'multipart/form-data'
-                }
-            }
-        );
+    const response = await API.post('/reports', formDataToSend, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+        });
 
         if (response.data.success) {
             setSubmittedReport(response.data.report);
@@ -457,11 +453,9 @@ const CreateReport = () => {
             photos.forEach(photo => formDataToSend.append('photos', photo));
 
             // Check for active duplicates before submitting
-            const dupCheck = await axios.post(
-                'http://localhost:5000/api/reports/check-duplicate',
-                { lat: location.lat, lng: location.lng, category: formData.category },
-                { headers: { 'Authorization': `Bearer ${token}` } }
-            );
+            const dupCheck = await API.post('/reports/check-duplicate', {
+                lat: location.lat, lng: location.lng, category: formData.category
+            });
 
             if (dupCheck.data.hasDuplicates) {
                 // Store form data and duplicates, show warning modal — don't submit yet

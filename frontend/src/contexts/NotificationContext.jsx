@@ -28,7 +28,8 @@ export const NotificationProvider = ({ children }) => {
             return;
         }
 
-        const newSocket = io('http://localhost:5000', {
+        const socketUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const newSocket = io(socketUrl, {
             auth: { token },
             transports: ['websocket']
         });

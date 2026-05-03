@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import authService from '../services/auth';
 
 const UserActivityModal = ({ userId, onClose }) => {
@@ -14,8 +14,8 @@ const UserActivityModal = ({ userId, onClose }) => {
         try {
             setLoading(true);
             const token = authService.getToken();
-            const response = await axios.get(
-                `http://localhost:5000/api/admin/users/${userId}/activity`,
+            const response = await API.get(
+                `/admin/users/${userId}/activity`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (response.data.success) {

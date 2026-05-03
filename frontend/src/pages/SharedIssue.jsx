@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
+import API from '../services/api';
 
 const SharedIssue = () => {
     const { id } = useParams();
@@ -14,7 +14,7 @@ const SharedIssue = () => {
 
     const fetchSharedIssue = async () => {
         try {
-            const response = await axios.get(`http://localhost:5000/api/search/public/${id}`);
+            const response = await API.get(`/search/public/${id}`);
             setIssue(response.data.report);
         } catch (error) {
             console.error('Error fetching shared issue:', error);

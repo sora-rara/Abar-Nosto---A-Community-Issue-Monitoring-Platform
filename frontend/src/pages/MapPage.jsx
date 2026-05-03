@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, GeoJSON } from 'react-leaflet';
-import axios from 'axios';
+import API from '../services/api';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -35,9 +35,7 @@ const MapPage = () => {
     const fetchIssues = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get('http://localhost:5000/api/issues?exclude_resolved=true', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await API.get('/issues?exclude_resolved=true');
             const raw = Array.isArray(response.data.data)
                 ? response.data.data
                 : Array.isArray(response.data)
@@ -152,7 +150,7 @@ const MapPage = () => {
 
                                             {issue.image && (
                                                 <img
-                                                    src={`http://localhost:5000${issue.image}`}
+                                                    src={`${import.meta.env.VITE_BACKEND_URL}${issue.image}`}
                                                     alt="Issue"
                                                     className="w-full h-32 object-cover rounded mt-3 border border-slate-500"
                                                 />

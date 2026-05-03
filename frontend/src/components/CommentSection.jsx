@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-
+import API from '../services/api';
 // Helper function to decode JWT token
 const decodeToken = (token) => {
     try {
@@ -62,8 +61,8 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
 
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.post(
-                `http://localhost:5000/api/issues/${issueId}/comments`,
+            const response = await API.post(
+                `/issues/${issueId}/comments`,
                 { text: newComment },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -96,8 +95,8 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
             const token = localStorage.getItem('token');
             console.log('Editing comment:', { issueId, commentId, editText });
 
-            const response = await axios.put(
-                `http://localhost:5000/api/issues/${issueId}/comments/${commentId}`,
+            const response = await API.put(
+                `/issues/${issueId}/comments/${commentId}`,
                 { text: editText },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -129,8 +128,8 @@ const CommentSection = ({ issueId, initialComments, onCommentAdded, onCommentUpd
             const token = localStorage.getItem('token');
             console.log('Deleting comment:', { issueId, commentId });
 
-            await axios.delete(
-                `http://localhost:5000/api/issues/${issueId}/comments/${commentId}`,
+            await API.delete(
+                `/issues/${issueId}/comments/${commentId}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/API';
 
 const ActivityFeed = () => {
     const [activities, setActivities] = useState([]);
@@ -15,7 +15,7 @@ const ActivityFeed = () => {
     const fetchActivities = async () => {
         try {
             // FIX: Change from 'activity-feed' to 'activities/feed'
-            const response = await axios.get('http://localhost:5000/api/issues/activities/feed');
+            const response = await API.get('issues/activities/feed');
             setActivities(response.data.data || []);
         } catch (error) {
             console.error('Error fetching activities:', error);

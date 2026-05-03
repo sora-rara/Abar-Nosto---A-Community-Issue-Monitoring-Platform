@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import { Link } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,7 +15,7 @@ const NotificationPanel = ({ onClose }) => {
     const fetchNotifications = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('/api/notifications?limit=20', {
+            const res = await API.get('/notifications?limit=20', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setNotifications(res.data.data || []);
@@ -29,7 +29,7 @@ const NotificationPanel = ({ onClose }) => {
 
     const markAsRead = async (id) => {
         const token = localStorage.getItem('token');
-        await axios.put(`/api/notifications/${id}/read`, {}, {
+        await API.put(`/notifications/${id}/read`, {}, {
             headers: { Authorization: `Bearer ${token}` }
         });
         setNotifications(prev =>
@@ -39,7 +39,7 @@ const NotificationPanel = ({ onClose }) => {
 
     const markAllRead = async () => {
         const token = localStorage.getItem('token');
-        await axios.put('/api/notifications/read-all', {}, {
+        await API.put('/notifications/read-all', {}, {
             headers: { Authorization: `Bearer ${token}` }
         });
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import API from '../services/api';
 import { getDraftFromLocal, saveDraftToLocal, clearDraftFromLocal } from '../services/draftStorage';
 
 const useDraft = (initialData) => {
@@ -19,9 +19,7 @@ const useDraft = (initialData) => {
         setDraftData(data);
         try {
             const token = localStorage.getItem('token');
-            await axios.post('http://localhost:5000/api/drafts', data, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await API.post('/drafts', data);
         } catch (error) {
             console.error('Failed to save draft to server:', error);
         }
@@ -41,7 +39,7 @@ const useDraft = (initialData) => {
         setShowReminder(false);
         // Optionally delete from server
         const token = localStorage.getItem('token');
-        axios.delete('http://localhost:5000/api/drafts', { headers: { Authorization: `Bearer ${token}` } })
+        API.delete('/drafts')
             .catch(err => console.error('Failed to delete draft from server:', err));
     }, []);
 
