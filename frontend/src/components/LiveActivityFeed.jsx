@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import API from '../services/api';;
+import API from '../services/api';
 
 const LiveActivityFeed = () => {
     const [activities, setActivities] = useState([]);

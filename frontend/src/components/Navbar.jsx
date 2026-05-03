@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import API from '../services/api';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
-import UserReputation from './UserReputation';
+import UserReputation from './userReputation';
 
 const Navbar = () => {
     const navigate = useNavigate();
