@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import API from '../services/api';
-import UserReputation from '../components/UserReputation';
+import UserReputation from '../components/userReputation';
 
 const AdminReputation = () => {
     const [users, setUsers] = useState([]);
@@ -41,7 +41,7 @@ const AdminReputation = () => {
     const fetchUserHistory = async (userId) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await API.get(`/admin/users/${userId}/history`); 
+            const response = await API.get(`/admin/users/${userId}/history`);
             setHistory(response.data.history);
         } catch (error) {
             console.error('Error fetching history:', error);
@@ -51,17 +51,17 @@ const AdminReputation = () => {
     // ========== AUTO-SYNC FUNCTION ==========
     const syncWithDatabase = async () => {
         if (!autoSyncEnabled) return;
-        
+
         setSyncStatus({ syncing: true, lastSync: syncStatus.lastSync });
         try {
             const token = localStorage.getItem('token');
             // Fetch latest users data from database
             const response = await API.get('/admin/users');
 
-            
+
             // Update local state with database data
             setUsers(response.data.users);
-            
+
             // If a user is selected, update their data and history
             if (selectedUser) {
                 const updatedUser = response.data.users.find(u => u._id === selectedUser._id);
@@ -72,17 +72,17 @@ const AdminReputation = () => {
                     setHistory(historyResponse.data.history);
                 }
             }
-            
+
             setSyncStatus({ syncing: false, lastSync: new Date() });
             setMessage({ type: 'success', text: 'Auto-sync completed successfully!' });
-            
+
             // Clear success message after 3 seconds
             setTimeout(() => {
                 if (message.type === 'success') {
                     setMessage({ type: '', text: '' });
                 }
             }, 3000);
-            
+
         } catch (error) {
             console.error('Auto-sync error:', error);
             setSyncStatus({ syncing: false, lastSync: syncStatus.lastSync });
@@ -101,11 +101,11 @@ const AdminReputation = () => {
         const newSyncState = !autoSyncEnabled;
         setAutoSyncEnabled(newSyncState);
         localStorage.setItem('adminAutoSync', newSyncState.toString());
-        setMessage({ 
-            type: 'info', 
-            text: newSyncState ? 'Auto-sync enabled' : 'Auto-sync disabled' 
+        setMessage({
+            type: 'info',
+            text: newSyncState ? 'Auto-sync enabled' : 'Auto-sync disabled'
         });
-        
+
         // Clear message after 2 seconds
         setTimeout(() => {
             if (message.type === 'info') {
@@ -117,13 +117,13 @@ const AdminReputation = () => {
     // ========== AUTO-SYNC INTERVAL (every 30 seconds) ==========
     useEffect(() => {
         let intervalId;
-        
+
         if (autoSyncEnabled) {
             intervalId = setInterval(() => {
                 syncWithDatabase();
             }, 30000); // Sync every 30 seconds
         }
-        
+
         return () => {
             if (intervalId) {
                 clearInterval(intervalId);
@@ -144,16 +144,16 @@ const AdminReputation = () => {
                 { points: parseInt(adjustPoints), reason: adjustReason }
             );
             setMessage({ type: 'success', text: 'Reputation updated successfully' });
-            
+
             // ========== FORCE SYNC AFTER UPDATE ==========
             await fetchUsers();
             await fetchUserHistory(selectedUser._id);
-            
+
             // Trigger auto-sync immediately after update
             if (autoSyncEnabled) {
                 await syncWithDatabase();
             }
-            
+
             setAdjustPoints('');
             setAdjustReason('');
         } catch (error) {
@@ -178,7 +178,7 @@ const AdminReputation = () => {
     // Filter users based on search and role
     const filteredUsers = users.filter(user => {
         const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              user.email.toLowerCase().includes(searchTerm.toLowerCase());
+            user.email.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole = filterRole === 'all' || user.role === filterRole;
         return matchesSearch && matchesRole;
     });
@@ -203,36 +203,33 @@ const AdminReputation = () => {
                             <h1 className="text-3xl font-bold text-gray-800">Admin: Reputation Management</h1>
                             <p className="text-gray-600 mt-2">Manage user reputations, view history, and make manual adjustments</p>
                         </div>
-                        
+
                         {/* ========== AUTO-SYNC CONTROLS ========== */}
                         <div className="flex items-center gap-3 bg-white rounded-lg shadow-md p-3">
                             <div className="flex items-center gap-2">
                                 <label className="text-sm font-medium text-gray-700">Auto-Sync:</label>
                                 <button
                                     onClick={toggleAutoSync}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                                        autoSyncEnabled ? 'bg-blue-600' : 'bg-gray-300'
-                                    }`}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${autoSyncEnabled ? 'bg-blue-600' : 'bg-gray-300'
+                                        }`}
                                 >
                                     <span
-                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                                            autoSyncEnabled ? 'translate-x-6' : 'translate-x-1'
-                                        }`}
+                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${autoSyncEnabled ? 'translate-x-6' : 'translate-x-1'
+                                            }`}
                                     />
                                 </button>
                                 <span className={`text-sm ${autoSyncEnabled ? 'text-green-600' : 'text-gray-500'}`}>
                                     {autoSyncEnabled ? 'ON' : 'OFF'}
                                 </span>
                             </div>
-                            
+
                             <button
                                 onClick={handleManualSync}
                                 disabled={syncStatus.syncing}
-                                className={`px-3 py-1 rounded-md text-sm font-medium transition ${
-                                    syncStatus.syncing
+                                className={`px-3 py-1 rounded-md text-sm font-medium transition ${syncStatus.syncing
                                         ? 'bg-gray-400 cursor-not-allowed'
                                         : 'bg-blue-600 hover:bg-blue-700 text-white'
-                                }`}
+                                    }`}
                             >
                                 {syncStatus.syncing ? (
                                     <span className="flex items-center gap-1">
@@ -248,7 +245,7 @@ const AdminReputation = () => {
                             </button>
                         </div>
                     </div>
-                    
+
                     {/* ========== SYNC STATUS INDICATOR ========== */}
                     {syncStatus.lastSync && (
                         <div className="mt-2 text-xs text-gray-500">
@@ -259,11 +256,10 @@ const AdminReputation = () => {
                 </div>
 
                 {message.text && (
-                    <div className={`mb-4 p-4 rounded-lg ${
-                        message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-300' :
-                        message.type === 'error' ? 'bg-red-100 text-red-800 border border-red-300' :
-                        'bg-blue-100 text-blue-800 border border-blue-300'
-                    }`}>
+                    <div className={`mb-4 p-4 rounded-lg ${message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-300' :
+                            message.type === 'error' ? 'bg-red-100 text-red-800 border border-red-300' :
+                                'bg-blue-100 text-blue-800 border border-blue-300'
+                        }`}>
                         {message.text}
                     </div>
                 )}
@@ -274,7 +270,7 @@ const AdminReputation = () => {
                         <div className="bg-gradient-to-r from-blue-600 to-blue-800 px-6 py-4">
                             <h2 className="text-xl font-semibold text-white">All Users</h2>
                         </div>
-                        
+
                         {/* Search and Filter Bar */}
                         <div className="p-4 border-b bg-gray-50">
                             <div className="flex flex-col sm:flex-row gap-3">
@@ -308,17 +304,15 @@ const AdminReputation = () => {
                                     <div
                                         key={user._id}
                                         onClick={() => selectUser(user)}
-                                        className={`p-4 cursor-pointer transition hover:bg-gray-50 ${
-                                            selectedUser?._id === user._id ? 'bg-blue-50 border-l-4 border-blue-600' : ''
-                                        }`}
+                                        className={`p-4 cursor-pointer transition hover:bg-gray-50 ${selectedUser?._id === user._id ? 'bg-blue-50 border-l-4 border-blue-600' : ''
+                                            }`}
                                     >
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-medium text-gray-800">{user.name}</p>
-                                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                                        user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
-                                                    }`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded-full ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+                                                        }`}>
                                                         {user.role}
                                                     </span>
                                                 </div>
