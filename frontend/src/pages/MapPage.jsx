@@ -88,7 +88,7 @@ const MapPage = () => {
 
                 {/* SIDEBAR */}
                 <aside className="w-80 bg-slate-800 text-white flex flex-col shadow-lg z-10">
-                    <div className="p-5 border-b border-slate-600 flex-shrink-0">
+                    {/* <div className="p-5 border-b border-slate-600 flex-shrink-0">
                         <h2 className="text-xl font-bold mb-2 text-center">Indicators</h2>
                         <div className="flex flex-col gap-4 text-sm mt-4">
                             <div className="flex items-center gap-3">
@@ -104,7 +104,7 @@ const MapPage = () => {
                                 <span><strong>Red:</strong> Fatal Accident / Fire</span>
                             </div>
                         </div>
-                    </div>
+                    </div> */}
                     {/* TRENDING REPORTS SECTION */}
                     <div className="p-5 border-b border-slate-600 bg-slate-900/50">
                         <h2 className="text-xl font-bold mb-4 text-center text-orange-400">🔥 Trending</h2>

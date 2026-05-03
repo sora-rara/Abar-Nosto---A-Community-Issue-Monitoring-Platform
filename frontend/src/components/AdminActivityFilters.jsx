@@ -43,7 +43,7 @@ const AdminActivityFilters = ({ filters, onFilterChange, onMarkAllRead, unreadCo
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <input
                         type="text"
-                        placeholder="🔍 Search activities, users, issues..."
+                        placeholder="Search activities, users, issues..."
                         value={filters.search}
                         onChange={(e) => onFilterChange('search', e.target.value)}
                         style={{
@@ -76,7 +76,7 @@ const AdminActivityFilters = ({ filters, onFilterChange, onMarkAllRead, unreadCo
                             onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
                             onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
                         >
-                            📬 Mark All Read ({unreadCount})
+                            Mark All Read ({unreadCount})
                         </button>
                     )}
                 </div>

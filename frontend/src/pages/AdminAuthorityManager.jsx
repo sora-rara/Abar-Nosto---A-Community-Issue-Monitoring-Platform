@@ -72,9 +72,12 @@ const AdminAuthorityManager = () => {
             const res = await axios.get('http://localhost:5000/api/issues', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setIssues(res.data);
+            // ✅ Extract the actual array from res.data
+            const issuesArray = res.data.data || (Array.isArray(res.data) ? res.data : []);
+            setIssues(issuesArray);
         } catch (error) {
             console.error('Failed to fetch issues:', error);
+            setIssues([]); // fallback to empty array
         } finally {
             setLoadingIssues(false);
         }

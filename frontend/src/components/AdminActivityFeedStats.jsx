@@ -9,28 +9,28 @@ const AdminActivityFeedStats = ({ analytics }) => {
             value: analytics.unreadCount || 0,
             color: '#3b82f6',
             bg: '#eff6ff',
-            icon: '📬'
+
         },
         {
             label: 'Flagged',
             value: analytics.flaggedCount || 0,
             color: '#ef4444',
             bg: '#fef2f2',
-            icon: '🚩'
+
         },
         {
             label: 'Last 24h',
             value: analytics.recentActivityCount || 0,
             color: '#10b981',
             bg: '#f0fdf4',
-            icon: '🕐'
+
         },
         {
             label: 'Total',
             value: analytics.totalActivities || 0,
             color: '#8b5cf6',
             bg: '#f5f3ff',
-            icon: '📊'
+
         }
     ];
 

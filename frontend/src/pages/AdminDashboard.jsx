@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/auth';
 import axios from 'axios';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -28,6 +30,7 @@ const AdminDashboard = () => {
     const [finalUpdate, setFinalUpdate] = useState('');
     const [updating, setUpdating] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
+    const [generatingReport, setGeneratingReport] = useState(false);
 
     useEffect(() => {
         const token = authService.getToken();
@@ -182,25 +185,204 @@ const AdminDashboard = () => {
         setShowArchived(false);
     };
 
-    const handleGenerateReport = async () => {
+    // PDF Export Function
+    const handleGeneratePDFReport = async () => {
+        if (generatingReport) return;
+        
+        setGeneratingReport(true);
+        
         try {
             const token = authService.getToken();
-            // Fetch the CSV file from our new backend route
-            const response = await axios.get('http://localhost:5000/api/admin/export', {
-                headers: { Authorization: `Bearer ${token}` },
-                responseType: 'blob' // Tells Axios we are downloading a file
+            
+            // Fetch all issues for the report
+            const response = await axios.get('http://localhost:5000/api/admin/issues?limit=1000', {
+                headers: { Authorization: `Bearer ${token}` }
             });
-
-            // Create a temporary link to download the file
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `database-export-${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-            window.URL.revokeObjectURL(url);
+            
+            const allIssues = response.data.data || [];
+            const reportStats = response.data.stats || stats;
+            
+            // Create PDF document - landscape A4
+            const doc = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: 'a4'
+            });
+            
+            // Add header with gradient effect
+            doc.setFillColor(15, 23, 42);
+            doc.rect(0, 0, 297, 40, 'F');
+            
+            // Title
+            doc.setFontSize(24);
+            doc.setTextColor(255, 255, 255);
+            doc.text('Abar Nosto! - Admin Report', 14, 20);
+            
+            // Subtitle
+            doc.setFontSize(11);
+            doc.setTextColor(200, 200, 200);
+            const dateStr = new Date().toLocaleString();
+            doc.text(`Generated on: ${dateStr}`, 14, 32);
+            
+            // Reset text color for body
+            doc.setTextColor(33, 33, 33);
+            
+            // Summary Statistics Section
+            doc.setFontSize(16);
+            doc.setTextColor(15, 23, 42);
+            doc.text('Executive Summary', 14, 55);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Key performance metrics and issue statistics overview', 14, 63);
+            
+            // Stats Cards as a table
+            const statsData = [
+                ['Total Issues', (reportStats.total || 0).toString()],
+                ['Reported', (reportStats.reported || 0).toString()],
+                ['In Progress', (reportStats.inProgress || 0).toString()],
+                ['Resolved', (reportStats.resolved || 0).toString()],
+                ['Archived', (reportStats.archived || 0).toString()]
+            ];
+            
+            autoTable(doc, {
+                startY: 70,
+                head: [['Metric', 'Value']],
+                body: statsData,
+                theme: 'striped',
+                headStyles: { fillColor: [59, 130, 246], textColor: 255, fontSize: 10 },
+                bodyStyles: { fontSize: 10 },
+                margin: { left: 14, right: 14 },
+                columnStyles: {
+                    0: { cellWidth: 80 },
+                    1: { cellWidth: 40 }
+                }
+            });
+            
+            // Add Resolution Rate section
+            let finalY = doc.lastAutoTable?.finalY || 100;
+            const resolutionRate = reportStats.total > 0 
+                ? ((reportStats.resolved / reportStats.total) * 100).toFixed(1) 
+                : 0;
+            
+            doc.setFontSize(12);
+            doc.setTextColor(33, 33, 33);
+            doc.text(`Overall Resolution Rate: ${resolutionRate}%`, 14, finalY + 15);
+            
+            // Add Category Breakdown
+            finalY = finalY + 25;
+            doc.setFontSize(14);
+            doc.setTextColor(15, 23, 42);
+            doc.text('Category Breakdown', 14, finalY);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Distribution of issues by category', 14, finalY + 8);
+            
+            // Fetch category stats if available, otherwise calculate from issues
+            let categoryStats = {};
+            try {
+                const statsResponse = await axios.get('http://localhost:5000/api/admin/stats', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (statsResponse.data.success && statsResponse.data.data.byCategory) {
+                    categoryStats = statsResponse.data.data.byCategory;
+                }
+            } catch (err) {
+                // Calculate from issues if API fails
+                allIssues.forEach(issue => {
+                    const cat = issue.category || 'other';
+                    categoryStats[cat] = (categoryStats[cat] || 0) + 1;
+                });
+            }
+            
+            const categoryData = Object.entries(categoryStats).map(([cat, count]) => [
+                cat.replace(/_/g, ' ').charAt(0).toUpperCase() + cat.replace(/_/g, ' ').slice(1),
+                count.toString()
+            ]);
+            
+            if (categoryData.length > 0) {
+                autoTable(doc, {
+                    startY: finalY + 12,
+                    head: [['Category', 'Count']],
+                    body: categoryData,
+                    theme: 'striped',
+                    headStyles: { fillColor: [59, 130, 246], textColor: 255, fontSize: 10 },
+                    bodyStyles: { fontSize: 10 },
+                    margin: { left: 14, right: 14 },
+                    columnStyles: {
+                        0: { cellWidth: 80 },
+                        1: { cellWidth: 30 }
+                    }
+                });
+            }
+            
+            // Add Issues List Section
+            finalY = doc.lastAutoTable?.finalY || (finalY + 80);
+            
+            // Check if we need a new page
+            if (finalY > 180) {
+                doc.addPage();
+                finalY = 20;
+            }
+            
+            doc.setFontSize(14);
+            doc.setTextColor(15, 23, 42);
+            doc.text('Recent Issues', 14, finalY + 10);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Total ${allIssues.length} issues reported`, 14, finalY + 18);
+            
+            if (allIssues.length > 0) {
+                const issuesData = allIssues.slice(0, 50).map(issue => [
+                    issue.title?.substring(0, 40) || 'N/A',
+                    issue.category?.replace(/_/g, ' ') || 'N/A',
+                    issue.status || 'N/A',
+                    issue.reporterName || 'Unknown',
+                    new Date(issue.createdAt).toLocaleDateString()
+                ]);
+                
+                autoTable(doc, {
+                    startY: finalY + 22,
+                    head: [['Title', 'Category', 'Status', 'Reporter', 'Date']],
+                    body: issuesData,
+                    theme: 'striped',
+                    headStyles: { fillColor: [59, 130, 246], textColor: 255, fontSize: 9 },
+                    bodyStyles: { fontSize: 8 },
+                    margin: { left: 14, right: 14 },
+                    columnStyles: {
+                        0: { cellWidth: 70 },
+                        1: { cellWidth: 35 },
+                        2: { cellWidth: 30 },
+                        3: { cellWidth: 40 },
+                        4: { cellWidth: 30 }
+                    }
+                });
+            }
+            
+            // Add footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150, 150, 150);
+                doc.text(
+                    `Abar Nosto! Admin Report - Page ${i} of ${pageCount}`,
+                    doc.internal.pageSize.getWidth() / 2,
+                    doc.internal.pageSize.getHeight() - 10,
+                    { align: 'center' }
+                );
+            }
+            
+            // Save the PDF
+            doc.save(`admin-report-${new Date().toISOString().split('T')[0]}.pdf`);
+            
         } catch (error) {
-            console.error('Error exporting data:', error);
-            alert('Failed to export data from server.');
+            console.error('PDF Export error:', error);
+            alert(`Failed to generate PDF report: ${error.response?.data?.message || error.message}`);
+        } finally {
+            setGeneratingReport(false);
         }
     };
 
@@ -426,18 +608,38 @@ const AdminDashboard = () => {
                         </button>
 
                         <button
-                            onClick={handleGenerateReport}
+                            onClick={handleGeneratePDFReport}
+                            disabled={generatingReport}
                             style={{
                                 padding: '10px 20px',
-                                backgroundColor: '#9f7aea',
+                                backgroundColor: generatingReport ? '#9ca3af' : '#ef4444',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '5px',
-                                cursor: 'pointer',
-                                fontSize: '14px'
+                                cursor: generatingReport ? 'not-allowed' : 'pointer',
+                                fontSize: '14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
                             }}
                         >
-                            Generate Report
+                            {generatingReport ? (
+                                <>
+                                    <div style={{
+                                        width: '16px',
+                                        height: '16px',
+                                        border: '2px solid white',
+                                        borderTop: '2px solid transparent',
+                                        borderRadius: '50%',
+                                        animation: 'spin 0.8s linear infinite'
+                                    }}></div>
+                                    Generating...
+                                </>
+                            ) : (
+                                <>
+                                    📄 Generate PDF Report
+                                </>
+                            )}
                         </button>
 
                         <button
@@ -825,6 +1027,13 @@ const AdminDashboard = () => {
                     </div>
                 </div>
             )}
+            
+            <style>{`
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `}</style>
         </div>
     );
 };

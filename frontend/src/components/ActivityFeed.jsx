@@ -25,7 +25,7 @@ const ActivityFeed = () => {
     };
 
     const getActivityIcon = (type) => {
-        switch(type) {
+        switch (type) {
             case 'new_issue':
                 return '🆕';
             case 'new_comment':
@@ -42,7 +42,7 @@ const ActivityFeed = () => {
     };
 
     const getActivityColor = (type) => {
-        switch(type) {
+        switch (type) {
             case 'new_issue':
                 return 'border-blue-500 bg-blue-50';
             case 'new_comment':

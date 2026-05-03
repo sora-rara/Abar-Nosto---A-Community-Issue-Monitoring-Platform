@@ -331,7 +331,7 @@ const Navbar = () => {
                                     style={isActive('/create-report') ? { backgroundColor: '#FFA500' } : {}}
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
-                                    <span className="mr-2">📸</span>
+
                                     Report Issue
                                 </Link>
                                 <Link
@@ -343,7 +343,7 @@ const Navbar = () => {
                                     style={isActive('/search') ? { backgroundColor: '#FFA500' } : {}}
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
-                                    🔍 Search Issues
+                                    Search Issues
                                 </Link>
                                 <Link
                                     to="/map"
@@ -354,7 +354,7 @@ const Navbar = () => {
                                     style={isActive('/map') ? { backgroundColor: '#FFA500' } : {}}
                                     onClick={() => setMobileMenuOpen(false)}
                                 >
-                                    <span className="mr-2">🗺️</span>
+
                                     City Map
                                 </Link>
                                 {/* Authorities links */}
@@ -368,7 +368,7 @@ const Navbar = () => {
                                         style={isActive('/authorities') ? { backgroundColor: '#FFA500' } : {}}
                                         onClick={() => setMobileMenuOpen(false)}
                                     >
-                                        📞 Authorities Directory
+                                        Authorities Directory
                                     </Link>
                                 )}
                                 {isAdmin && (
@@ -395,7 +395,7 @@ const Navbar = () => {
                                         style={isActive('/profile') ? { backgroundColor: '#FFA500' } : {}}
                                         onClick={() => setMobileMenuOpen(false)}
                                     >
-                                        👤 My Profile
+                                        My Profile
                                     </Link>
                                 )}
                                 {/* Reputation Management Link in Mobile Menu - Admin only */}

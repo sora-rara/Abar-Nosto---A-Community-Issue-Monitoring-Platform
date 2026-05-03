@@ -76,7 +76,7 @@ const UpDashboard = () => {
             const token = localStorage.getItem('token');
             let url = 'http://localhost:5000/api/issues';
 
-            // 1. Only send Category and Status to the backend database
+            // 1. Send Category and Status to the backend
             const params = new URLSearchParams();
             if (filters.category !== 'all') params.append('category', filters.category);
             if (filters.status !== 'all') params.append('status', filters.status);
@@ -95,39 +95,36 @@ const UpDashboard = () => {
                     ? response.data
                     : [];
 
-            // ====================================================
-            // 2. FRONTEND WARD & AREA FILTER (The "Mirpur 14" Fix)
-            // ====================================================
+            // 2. Frontend Ward & Area Filter
             if (filters.area !== 'all') {
                 processedIssues = processedIssues.filter(issue => {
                     const address = issue.location?.address?.toLowerCase() || '';
                     return address.includes(filters.area.toLowerCase());
                 });
             } else if (filters.ward !== 'all') {
-                // GPS addresses don't say "Ward 4". We must search for all areas inside Ward 4!
                 const areasInThisWard = dhakaData
                     .filter(item => item.ward === filters.ward)
                     .map(item => item.area_name.en.toLowerCase());
 
                 processedIssues = processedIssues.filter(issue => {
                     const address = issue.location?.address?.toLowerCase() || '';
-                    // Check if the address string contains ANY of the areas mapped to this Ward
                     return areasInThisWard.some(area => address.includes(area));
                 });
             }
 
-            // ====================================================
-            // 3. FRONTEND SORT (The "Most Popular" Fix)
-            // ====================================================
+            // 3. Exclude archived when "All Status" is selected
+            if (filters.status === 'all') {
+                processedIssues = processedIssues.filter(issue => issue.status !== 'archived');
+            }
+
+            // 4. Sorting (Most Recent or Most Popular)
             if (filters.sort === 'popular') {
                 processedIssues.sort((a, b) => {
-                    // Check for either a direct count, or the length of the upvotes array
                     const aVotes = a.upvoteCount || (a.upvotes ? a.upvotes.length : 0);
                     const bVotes = b.upvoteCount || (b.upvotes ? b.upvotes.length : 0);
-                    return bVotes - aVotes; // Sort highest to lowest
+                    return bVotes - aVotes;
                 });
             } else {
-                // Default to Most Recent
                 processedIssues.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             }
 
@@ -311,8 +308,8 @@ const UpDashboard = () => {
                                         key={issue._id}
                                         id={`issue-${issue._id}`}
                                         className={`transition-all duration-1000 ${highlightId === issue._id
-                                                ? 'ring-4 ring-orange-500 shadow-2xl scale-[1.01] rounded-xl z-10 relative bg-orange-50/20'
-                                                : ''
+                                            ? 'ring-4 ring-orange-500 shadow-2xl scale-[1.01] rounded-xl z-10 relative bg-orange-50/20'
+                                            : ''
                                             }`}
                                     >
                                         <IssueCard

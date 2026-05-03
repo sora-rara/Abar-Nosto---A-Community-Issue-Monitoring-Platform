@@ -182,7 +182,7 @@ const Home = () => {
     return (
         <div
             className="h-screen overflow-hidden bg-cover bg-center flex items-stretch relative"
-            style={{ backgroundImage: "url('/pokemon.jpg')" }}
+            style={{ backgroundImage: "url('/ginyard.jpg')" }}
         >
             {/* LEFT SIDE - Welcome Modal */}
             <div className="flex-grow flex items-center justify-center p-4">
@@ -199,12 +199,12 @@ const Home = () => {
                             See All Current Issues
                         </Link>
 
-                        <button
+                        {/* <button
                             onClick={handleQuickReport}
                             className="w-full py-3 px-4 bg-[#DCE7FF] text-[#0F172A] font-bold rounded-lg shadow-md hover:bg-[#B8C8F0] transition duration-300 flex items-center justify-center gap-2"
                         >
                             Quick Report an Issue Here
-                        </button>
+                        </button> */}
 
                         <Link
                             to="/map"
@@ -217,7 +217,7 @@ const Home = () => {
             </div>
 
             {/* RIGHT SIDE - Nearby Issues Sidebar */}
-            <div className="w-96 bg-white bg-opacity-95 shadow-2xl flex flex-col border-l border-gray-200">
+            <div className="w-70 bg-white bg-opacity-95 shadow-2xl flex flex-col border-l border-gray-200">
                 <div className="p-5 border-b border-gray-200 bg-[#0F172A] text-white flex-shrink-0">
                     <h2 className="text-xl font-bold flex items-center gap-2">
                         📍 Issues Near You

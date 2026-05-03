@@ -213,7 +213,7 @@ const AdminActivityFeed = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
                         <div>
                             <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0 }}>
-                                 Admin Activity Feed
+                                Admin Activity Feed
                             </h1>
                             <p style={{ margin: '5px 0 0 0', opacity: 0.9, fontSize: '14px' }}>
                                 Real-time monitoring, moderation, and analytics
@@ -234,7 +234,7 @@ const AdminActivityFeed = () => {
                                     transition: 'all 0.2s'
                                 }}
                             >
-                                📈 Analytics
+                                Analytics
                             </button>
                             <button
                                 onClick={() => navigate('/admin')}
@@ -436,8 +436,8 @@ const AdminActivityFeed = () => {
                     bottom: '20px',
                     right: '20px',
                     padding: '12px 24px',
-                    backgroundColor: toast.type === 'success' ? '#10b981' : 
-                                   toast.type === 'error' ? '#ef4444' : '#3b82f6',
+                    backgroundColor: toast.type === 'success' ? '#10b981' :
+                        toast.type === 'error' ? '#ef4444' : '#3b82f6',
                     color: 'white',
                     borderRadius: '8px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)',

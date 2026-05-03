@@ -1,38 +1,38 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const AdminActivityItem = ({ 
-    activity, 
-    isSelected, 
-    onSelect, 
-    onFlag, 
-    onUpdatePriority, 
+const AdminActivityItem = ({
+    activity,
+    isSelected,
+    onSelect,
+    onFlag,
+    onUpdatePriority,
     onMarkRead,
-    onViewUser 
+    onViewUser
 }) => {
     const [showActions, setShowActions] = useState(false);
     const navigate = useNavigate();
 
-    const getTypeIcon = (type) => {
-        const icons = {
-            new_issue: '🆕',
-            new_comment: '💬',
-            status_update: '📊',
-            issue_resolved: '✅',
-            upvote: '👍',
-            downvote: '👎',
-            upvote_removed: '👍',
-            downvote_removed: '👎',
-            user_registered: '👤',
-            report_flagged: '🚩',
-            bulk_action: '📦',
-            comment_moderated: '🛡️',
-            issue_prioritized: '⭐',
-            user_warning: '⚠️',
-            system_alert: '🔔'
-        };
-        return icons[type] || '📌';
-    };
+    // const getTypeIcon = (type) => {
+    //     const icons = {
+    //         new_issue: '🆕',
+    //         new_comment: '💬',
+    //         status_update: '📊',
+    //         issue_resolved: '✅',
+    //         upvote: '👍',
+    //         downvote: '👎',
+    //         upvote_removed: '👍',
+    //         downvote_removed: '👎',
+    //         user_registered: '👤',
+    //         report_flagged: '🚩',
+    //         bulk_action: '📦',
+    //         comment_moderated: '🛡️',
+    //         issue_prioritized: '⭐',
+    //         user_warning: '⚠️',
+    //         system_alert: '🔔'
+    //     };
+    //     return icons[type] || '📌';
+    // };
 
     const getPriorityColor = (priority) => {
         const colors = {
@@ -73,21 +73,21 @@ const AdminActivityItem = ({
             padding: '12px 20px',
             borderBottom: '1px solid #f1f5f9',
             alignItems: 'center',
-            backgroundColor: isSelected ? '#f0f9ff' : 
-                          !activity.isRead ? '#fafbff' : 'white',
+            backgroundColor: isSelected ? '#f0f9ff' :
+                !activity.isRead ? '#fafbff' : 'white',
             transition: 'background-color 0.2s',
             cursor: 'pointer'
         }}
-        onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#f8fafc';
-            setShowActions(true);
-        }}
-        onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = isSelected ? '#f0f9ff' : 
-                                                  !activity.isRead ? '#fafbff' : 'white';
-            setShowActions(false);
-        }}
-        onClick={handleIssueClick}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f8fafc';
+                setShowActions(true);
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = isSelected ? '#f0f9ff' :
+                    !activity.isRead ? '#fafbff' : 'white';
+                setShowActions(false);
+            }}
+            onClick={handleIssueClick}
         >
             {/* Checkbox */}
             <div>
@@ -102,7 +102,6 @@ const AdminActivityItem = ({
 
             {/* Activity Content */}
             <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: '20px', marginTop: '2px' }}>{getTypeIcon(activity.type)}</span>
                 <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
                         <span style={{ fontWeight: '600', fontSize: '14px', color: '#1e293b' }}>
@@ -122,10 +121,10 @@ const AdminActivityItem = ({
                         )}
                     </div>
                     {activity.issueTitle && (
-                        <div 
-                            style={{ 
-                                fontSize: '13px', 
-                                color: '#3b82f6', 
+                        <div
+                            style={{
+                                fontSize: '13px',
+                                color: '#3b82f6',
                                 fontWeight: '500',
                                 cursor: 'pointer',
                                 textDecoration: 'underline'
