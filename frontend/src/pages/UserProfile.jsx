@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
-import UserReputation from '../components/UserReputation';
+import UserReputation from '../components/userReputation';
 
 const UserProfile = () => {
     const navigate = useNavigate();
