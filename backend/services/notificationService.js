@@ -132,11 +132,21 @@ async function findNearbyUsers(lat, lng, globalMaxRadiusMeters = 5000) {
     return eligible.map(pref => ({ userId: pref.user, preference: pref }));
 }
 
+async function notifyAdmins(data) {
+    if (!io) {
+        console.error('❌ io is null, cannot notify admins');
+        return;
+    }
+    console.log(`📢 Broadcasting to admins: ${data.type}`);
+    io.to('admins').emit('notification', data);
+}
+
 module.exports = {
     notifyUser,
     notifyFollowers,
     notifyAuthor,
     findNearbyUsers,
     getDistanceFromLatLonInMeters,
-    setSocketInstance
+    setSocketInstance,
+    notifyAdmins
 };

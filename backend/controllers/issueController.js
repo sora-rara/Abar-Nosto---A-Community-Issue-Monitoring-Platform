@@ -3,7 +3,7 @@ const Activity = require('../models/Activity');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const AdminIssue = require('../models/AdminIssue');
-const { notifyFollowers, notifyAuthor, notifyUser } = require('../services/notificationService');
+const { notifyFollowers, notifyAuthor, notifyUser, notifyAdmins } = require('../services/notificationService');
 const { requestReopen: requestReopenService } = require('../services/issueStatusService');
 // ---- Added from second file ----
 const { sendReputationNotification } = require('../utils/reputationNotification');
@@ -647,6 +647,16 @@ const requestReopen = async (req, res) => {
         const { id } = req.params;
         const io = req.app.get('io');
         await requestReopenService(id, req.user.id, req.user.name, io);
+
+        const issue = await Report.findById(id).select('title');
+        await notifyAdmins({
+            type: 'reopen_request',
+            title: `Reactivation requested: ${issue.title}`,
+            message: `${req.user.name} requested reactivation of issue #${id.slice(-6)}.`,
+            relatedIssue: id,
+            metadata: { requestedBy: req.user.id }
+        });
+
         res.json({ success: true, message: 'Reopen request sent to admin' });
     } catch (error) {
         console.error('Request reopen error:', error);
@@ -660,30 +670,19 @@ const requestUpdate = async (req, res) => {
         const { id } = req.params;
         const userId = req.user.id;
 
-        // Fetch user and issue in parallel
         const [user, issue] = await Promise.all([
             User.findById(userId).select('name email'),
             Report.findById(id)
         ]);
 
-        if (!issue) {
-            return res.status(404).json({ success: false, message: 'Issue not found' });
-        }
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
+        if (!issue) return res.status(404).json({ success: false, message: 'Issue not found' });
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-        // Find an admin user to assign the notification to
         let adminUser = await User.findOne({ role: 'admin' });
-        if (!adminUser) {
-            // Fallback: use the first available user
-            adminUser = await User.findOne();
-        }
-        if (!adminUser) {
-            throw new Error('No user found to assign notification');
-        }
+        if (!adminUser) adminUser = await User.findOne();
+        if (!adminUser) throw new Error('No user found to assign notification');
 
-        // Create notification for admin
+        // Persistent notification for the panel
         await Notification.create({
             user: adminUser._id,
             type: 'update_request',
@@ -691,6 +690,14 @@ const requestUpdate = async (req, res) => {
             message: `${user.name} (${user.email}) requested the latest update on issue #${id.slice(-6)}.`,
             relatedIssue: id,
             createdAt: new Date()
+        });
+
+        await notifyAdmins({
+            type: 'update_request',
+            title: `Update requested: ${issue.title}`,
+            message: `${user.name} (${user.email}) requested the latest update on issue #${id.slice(-6)}.`,
+            relatedIssue: id,
+            metadata: { requestedBy: userId }
         });
 
         res.json({ success: true, message: 'Your request has been sent. You will be notified when an update is available.' });
