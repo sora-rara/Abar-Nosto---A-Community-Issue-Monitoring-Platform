@@ -59,7 +59,13 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
 const ToastListener = () => {
     const { toastNotification, clearToast } = useNotifications();
     if (!toastNotification) return null;
-    return <Toast notification={toastNotification} onClose={clearToast} />;
+    return (
+        <Toast
+            key={toastNotification._id}          // ← forces remount on every new notification
+            notification={toastNotification}
+            onClose={clearToast}
+        />
+    );
 };
 
 function App() {

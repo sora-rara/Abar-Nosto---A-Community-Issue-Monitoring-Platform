@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
+import API from '../services/api';   // ← added to fetch initial unread count
 
 export const NotificationContext = createContext();
-
 
 export const useNotifications = () => {
     const context = useContext(NotificationContext);
@@ -19,6 +19,7 @@ export const NotificationProvider = ({ children }) => {
     const [toastNotification, setToastNotification] = useState(null);
     const token = localStorage.getItem('token');
 
+    // 1. Connect to Socket.IO and listen for live notifications
     useEffect(() => {
         if (!token) {
             if (socket) {
@@ -41,14 +42,26 @@ export const NotificationProvider = ({ children }) => {
             setLatestNotification(notification);
             setUnreadCount(prev => prev + 1);
             setToastNotification(notification);
-
-
         });
 
         newSocket.on('disconnect', () => console.log('🔌 Socket disconnected'));
 
         setSocket(newSocket);
         return () => newSocket.close();
+    }, [token]);
+
+    // 2. Load unread count from the server on mount (so badge isn't always zero)
+    useEffect(() => {
+        if (!token) return;
+        (async () => {
+            try {
+                const res = await API.get('/notifications?limit=100');
+                const unread = res.data.data.filter(n => !n.read).length;
+                setUnreadCount(unread);
+            } catch (err) {
+                console.error('Failed to fetch unread count', err);
+            }
+        })();
     }, [token]);
 
     const resetUnreadCount = () => setUnreadCount(0);
