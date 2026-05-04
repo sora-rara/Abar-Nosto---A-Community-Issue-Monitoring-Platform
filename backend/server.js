@@ -266,6 +266,11 @@ app.use((req, res, next) => {
 // ============================================
 // ROUTES
 // ============================================
+
+// ⚠️ IMPORTANT: statsRoutes MUST be mounted before adminRoutes
+// because adminRoutes catches ALL /api/admin/* paths first.
+app.use('/api/admin/stats', statsRoutes);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/issues', issueRoutes);
@@ -274,9 +279,6 @@ app.use('/api/search', searchRoutes);
 app.use('/api/follows', followRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/preferences', preferenceRoutes);
-
-// ========== Existing stats route ==========
-app.use('/api/admin/stats', statsRoutes);
 
 // ===== NEW: Added routes from second file =====
 app.use('/api/authorities', authorityRoutes);

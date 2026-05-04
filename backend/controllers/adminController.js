@@ -391,7 +391,7 @@ exports.syncReports = async (req, res) => {
 exports.archiveIssue = async (req, res) => {
     try {
         const { id } = req.params;
-        const { comment } = req.body;
+        const { comment } = req.body || {};
 
         const adminIssue = await AdminIssue.findById(id);
         if (!adminIssue) {
@@ -427,7 +427,7 @@ exports.archiveIssue = async (req, res) => {
 exports.reactivateIssue = async (req, res) => {
     try {
         const { id } = req.params;
-        const { comment } = req.body;
+        const { comment } = req.body || {};
 
         const adminIssue = await AdminIssue.findById(id);
         if (!adminIssue) {
