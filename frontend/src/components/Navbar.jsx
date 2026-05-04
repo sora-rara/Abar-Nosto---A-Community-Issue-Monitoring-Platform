@@ -13,15 +13,10 @@ const Navbar = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-    const fetchUserReputation = async (token) => {
+    const fetchUserReputation = async () => {
         try {
-            const response = await fetch('/auth/me', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            const data = await response.json();
+            const response = await API.get('/auth/me');
+            const data = response.data;
             if (data.success && data.user) {
                 setUserReputation(data.user.reputation);
                 setUserRole(data.user.role);
@@ -47,7 +42,7 @@ const Navbar = () => {
                     console.error('Error parsing user', e);
                 }
             }
-            fetchUserReputation(token);
+            fetchUserReputation();
         } else {
             setIsLoggedIn(false);
             setUserName('');

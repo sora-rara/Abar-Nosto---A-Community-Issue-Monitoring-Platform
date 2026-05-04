@@ -188,20 +188,20 @@ const AdminWardStats = () => {
         }
     }, []);
 
-    // Initial data fetch
+    // Initial data fetch + auto-refresh every 30s (was 10s — too aggressive for Render free tier)
     useEffect(() => {
         isMounted.current = true;
 
-        // Fetch data with loading indicator for first load
         fetchWardStats(true);
         fetchComparisonStats();
 
-        // Set up auto-refresh every 10 seconds
         refreshInterval.current = setInterval(() => {
-            autoRefreshData();
-        }, 10000); // Refresh every 10 seconds
+            if (isMounted.current) {
+                fetchWardStats(false);
+                fetchComparisonStats();
+            }
+        }, 30000);
 
-        // Cleanup on unmount
         return () => {
             isMounted.current = false;
             cancelPendingRequests();
@@ -209,7 +209,8 @@ const AdminWardStats = () => {
                 clearInterval(refreshInterval.current);
             }
         };
-    }, [fetchWardStats, fetchComparisonStats, autoRefreshData, cancelPendingRequests]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run once on mount only
 
     // Handle period change - reset and fetch new data
     useEffect(() => {

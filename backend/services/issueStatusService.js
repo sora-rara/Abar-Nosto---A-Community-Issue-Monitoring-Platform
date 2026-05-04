@@ -21,20 +21,32 @@ function getExpectedPreviousStatus(newStatus) {
 
 /**
  * Update status of both Report and AdminIssue atomically
+ * Falls back to non-transactional update if sessions are unavailable (e.g. standalone MongoDB)
  */
 async function updateIssueStatus(reportId, newStatus, userId, userName, comment = '') {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    let session = null;
+    let useSession = true;
+
+    try {
+        session = await mongoose.startSession();
+        session.startTransaction();
+    } catch (sessionErr) {
+        console.warn('⚠️ MongoDB sessions unavailable, falling back to non-transactional update:', sessionErr.message);
+        useSession = false;
+        session = null;
+    }
+
+    const sessionOpt = useSession && session ? { session } : {};
 
     try {
         const expectedPrev = getExpectedPreviousStatus(newStatus);
 
         // First, find the report by ID regardless of status
-        let report = await Report.findById(reportId).session(session);
+        let report = await Report.findById(reportId, null, sessionOpt);
         if (!report) throw new Error('Issue not found');
 
         // Check if the AdminIssue exists and use it to resolve sync mismatches
-        const adminIssue = await AdminIssue.findOne({ originalReportId: reportId }).session(session);
+        const adminIssue = await AdminIssue.findOne({ originalReportId: reportId }, null, sessionOpt);
 
         // If report status doesn't match expected previous state, check if AdminIssue has the right status
         if (!expectedPrev.includes(report.status)) {
@@ -71,7 +83,7 @@ async function updateIssueStatus(reportId, newStatus, userId, userName, comment 
             report.reopenRequested = false;
         }
 
-        await report.save({ session });
+        await report.save(useSession && session ? { session } : {});
 
         if (adminIssue) {
             adminIssue.status = newStatus;
@@ -85,10 +97,12 @@ async function updateIssueStatus(reportId, newStatus, userId, userName, comment 
             if (newStatus === 'archived') adminIssue.archivedAt = new Date();
             if (newStatus === 'reported' && oldStatus === 'archived') adminIssue.reactivatedAt = new Date();
             adminIssue.reopenRequested = false;
-            await adminIssue.save({ session });
+            await adminIssue.save(useSession && session ? { session } : {});
         }
 
-        await session.commitTransaction();
+        if (useSession && session) {
+            await session.commitTransaction();
+        }
 
         // 📢 Send notifications based on the nature of the change
         let notifType = '';
@@ -128,10 +142,14 @@ async function updateIssueStatus(reportId, newStatus, userId, userName, comment 
 
         return { report, adminIssue };
     } catch (error) {
-        await session.abortTransaction();
+        if (useSession && session) {
+            await session.abortTransaction();
+        }
         throw error;
     } finally {
-        session.endSession();
+        if (session) {
+            session.endSession();
+        }
     }
 }
 
